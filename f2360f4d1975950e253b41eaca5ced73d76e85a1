@@ -1,0 +1,21 @@
+## Testing Contract
+
+Issue #1: Title day-of-week must match <updated> date
+
+```clojure
+;; MUST return :day-of-week-mismatch error
+(validate-entry {:title "Morning Brief: Thursday, June 19"
+                 :updated "2026-06-19T00:00:00Z" ...})
+;; June 19, 2026 is Friday!
+```
+
+## Boundaries
+
+- Detects day names in any position in title
+- Case insensitive matching
+- Uses clj-time for day-of-week calculation
+
+## PBT Coverage
+
+- prop-mismatched-days-always-invalid (20 runs)
+- prop-correct-days-no-day-error (20 runs)

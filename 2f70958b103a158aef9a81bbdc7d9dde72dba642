@@ -1,0 +1,19 @@
+## Testing Contract
+
+- parse-feed accepts XML string or Reader
+- Returns map with :id, :title, :updated, :entries keys
+- Handles atom namespace transparently
+
+## Boundaries
+
+- Uses clojure.data.xml (not external parsers)
+- No validation - pure parsing only
+- Nil-safe: missing elements return nil
+
+## Validation
+
+```clojure
+(require '[atom-validator.parser :as p])
+(p/parse-feed "<feed>...</feed>")
+;; => {:id "..." :title "..." :entries [...]}
+```

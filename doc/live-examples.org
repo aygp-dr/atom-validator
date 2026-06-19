@@ -1,0 +1,120 @@
+#+TITLE: atom-validator Live Examples
+#+PROPERTY: header-args:clojure :backend cider :session atom-validator
+
+Validate real-world Atom feeds using CIDER in Emacs.
+
+* Setup
+
+Start the REPL first:
+
+#+begin_src bash :results output
+make repl &
+sleep 10
+echo "REPL started on port 7888"
+#+end_src
+
+Then connect from Emacs: =M-x cider-connect RET localhost RET 7888=
+
+* Initialize
+
+#+begin_src clojure :results output
+(require '[atom-validator.core :as v])
+(println "atom-validator loaded")
+#+end_src
+
+* Feed URLs
+
+#+begin_src clojure :results value
+(def feeds
+  {:planet-emacs "https://planet.emacslife.com/atom.xml"
+   :clojure      "https://github.com/clojure/clojure/releases.atom"
+   :emacs        "https://github.com/emacs-mirror/emacs/releases.atom"
+   :xkcd         "https://xkcd.com/atom.xml"
+   :clean-coder  "https://blog.cleancoder.com/atom.xml"})
+#+end_src
+
+* Example 1: Fetch and Inspect a Feed
+
+#+begin_src clojure :results output
+(def clj-feed (v/parse-feed (slurp (:clojure feeds))))
+(println "Title:" (:title clj-feed))
+(println "Entries:" (count (:entries clj-feed)))
+(println "\nLatest releases:")
+(doseq [e (take 5 (:entries clj-feed))]
+  (println " -" (:title e)))
+#+end_src
+
+* Example 2: Validate Clojure Releases
+
+#+begin_src clojure :results output
+(def result (v/validate-feed (slurp (:clojure feeds))))
+(println "Valid:" (:valid? result))
+(println "Errors:" (count (:errors result)))
+(println "Warnings:" (count (:warnings result)))
+#+end_src
+
+* Example 3: Planet Emacslife
+
+#+begin_src clojure :results output
+(def emacs-result (v/validate-feed (slurp (:planet-emacs feeds))))
+(println "Title:" (get-in emacs-result [:feed :title]))
+(println "Valid:" (:valid? emacs-result))
+(println "Entries:" (count (get-in emacs-result [:feed :entries])))
+#+end_src
+
+* Example 4: Emacs Releases
+
+#+begin_src clojure :results output
+(def emacs-rel (v/parse-feed (slurp (:emacs feeds))))
+(println "Recent Emacs releases:")
+(doseq [e (take 5 (:entries emacs-rel))]
+  (println " -" (:title e) "-" (subs (:updated e) 0 10)))
+#+end_src
+
+* Example 5: XKCD Feed
+
+#+begin_src clojure :results output
+(def xkcd (v/parse-feed (slurp (:xkcd feeds))))
+(println "XKCD Comics:")
+(doseq [e (take 4 (:entries xkcd))]
+  (println " -" (:title e)))
+#+end_src
+
+* Example 6: Validate All Feeds
+
+#+begin_src clojure :results output
+(println "\n=== Feed Validation Summary ===\n")
+(doseq [[name url] feeds]
+  (print (format "%-15s" (subs (str name) 1)))
+  (flush)
+  (try
+    (let [r (v/validate-feed (slurp url))]
+      (println (format "%s  errors: %-2d  entries: %d"
+                       (if (:valid? r) "PASS" "FAIL")
+                       (count (:errors r))
+                       (count (get-in r [:feed :entries])))))
+    (catch Exception e
+      (println "ERROR:" (.getMessage e)))))
+#+end_src
+
+* Example 7: Quick Validation Check
+
+#+begin_src clojure :results value
+(v/valid? (slurp (:xkcd feeds)))
+#+end_src
+
+* Example 8: Inspect Error Details
+
+#+begin_src clojure :results output
+(let [result (v/validate-feed (slurp (:planet-emacs feeds)))]
+  (when (seq (:errors result))
+    (println "Errors found:")
+    (doseq [e (take 5 (:errors result))]
+      (println " -" (:code e) "-" (:message e)))))
+#+end_src
+
+* Local Variables
+
+# Local Variables:
+# org-confirm-babel-evaluate: nil
+# End:

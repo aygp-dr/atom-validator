@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy outdated lint lint-fix storm check
+.PHONY: help clean test repl jar install deploy release outdated lint lint-fix storm check
 
 CLOJARS_USER := apace
 
@@ -19,7 +19,11 @@ help:
 	@echo "  make install    - Install to local Maven repo"
 	@echo ""
 	@echo "Publish:"
+	@echo "  make release    - Full release: check, tag, deploy, docs"
 	@echo "  make deploy     - Deploy to Clojars (requires credentials)"
+	@echo ""
+	@echo "Credentials:"
+	@echo "  pass otp clojars/apace/totp   - Get Clojars 2FA code"
 
 clean:
 	clj -T:build clean
@@ -58,3 +62,16 @@ deploy:
 
 outdated:
 	clj -M:outdated
+
+# Full release workflow
+# Version = 0.1.N where N = git commit count
+release: check
+	@VERSION=0.1.$$(git rev-list --count HEAD) && \
+	echo "Releasing v$$VERSION..." && \
+	bin/validate-deploy && \
+	git tag v$$VERSION && \
+	git push origin v$$VERSION && \
+	$(MAKE) deploy && \
+	curl -sX POST "https://cljdoc.org/api/request-build2" \
+		-d "project=org.clojars.apace/atom-validator&version=$$VERSION" && \
+	echo "Released v$$VERSION to Clojars"

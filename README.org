@@ -240,29 +240,6 @@ Returns parsed feed as Clojure map with =:id=, =:title=, =:updated=, =:entries=,
 
 Quick check - returns =true= or =false=.
 
-* Releasing
-
-Version is derived from git commit count (=0.1.N= where N = commits).
-
-#+begin_src bash
-# 1. Ensure tests pass
-make check
-
-# 2. Audit JAR for secrets
-bin/validate-deploy
-
-# 3. Tag and deploy (version auto-increments)
-git tag v0.1.$(git rev-list --count HEAD)
-git push origin --tags
-make deploy
-
-# 4. Trigger cljdoc build
-curl -X POST "https://cljdoc.org/api/request-build2" \
-  -d "project=org.clojars.apace/atom-validator&version=0.1.$(git rev-list --count HEAD)"
-#+end_src
-
-Note: Clojars does not allow redeploying non-SNAPSHOT versions.
-
 * License
 
 MIT

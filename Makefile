@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy release outdated lint lint-fix storm check
+.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage
 
 CLOJARS_USER := apace
 
@@ -45,6 +45,13 @@ storm:
 	clj -A:storm:test
 
 check: lint test
+
+coverage:
+	clojure -M:coverage
+
+# Run everything CI runs
+ci: lint test coverage jar
+	@echo "CI checks passed"
 
 jar:
 	clj -T:build jar

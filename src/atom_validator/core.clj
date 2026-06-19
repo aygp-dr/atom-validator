@@ -10,12 +10,13 @@
   (:require [atom-validator.parser :as parser]
             [atom-validator.rules :as rules]
             [atom-validator.semantic :as semantic]
-            [atom-validator.url :as url]))
+            [atom-validator.url :as url]
+            [clojure.java.io :as io]))
 
 (def version
-  "Library version, read from POM at compile time."
+  "Library version, read from POM at runtime."
   (delay
-    (or (some-> (clojure.java.io/resource "META-INF/maven/org.clojars.apace/atom-validator/pom.properties")
+    (or (some-> (io/resource "META-INF/maven/org.clojars.apace/atom-validator/pom.properties")
                 slurp
                 (->> (re-find #"version=(.+)"))
                 second)

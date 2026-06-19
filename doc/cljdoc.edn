@@ -1,0 +1,6 @@
+{:cljdoc.doc/tree
+ [["Readme" {:file "README.org"}]
+  ["Getting Started" {:file "doc/getting-started.md"}]
+  ["Validation Rules" {:file "doc/validation-rules.md"}]
+  ["Changelog" {:file "CHANGELOG.md"}]]
+ :cljdoc/docstring-format :markdown}

@@ -6,7 +6,7 @@
 [[https://clojars.org/org.clojars.apace/atom-validator][https://img.shields.io/clojars/v/org.clojars.apace/atom-validator.svg]]
 [[https://opensource.org/licenses/MIT][https://img.shields.io/badge/License-MIT-blue.svg]]
 
-RFC 4287 Atom feed validator with property-based testing for Clojure.
+[[https://datatracker.ietf.org/doc/html/rfc4287][RFC 4287]] Atom feed validator with property-based testing for Clojure.
 
 * Features
 

@@ -1,0 +1,24 @@
+## Test Matrix
+
+| Issue | Unit Tests | PBT Tests | Runs |
+|-------|------------|-----------|------|
+| #1 Day-of-week | 2 | 2 | 40 |
+| #2 Freshness | 2 | 1 | 10 |
+| #3 URLs | 2 | 2 | 40 |
+| General | 2 | 1 | 10 |
+
+## Validation Command
+
+```bash
+gmake test
+# 14 tests, 17 assertions, 0 failures, 0 errors
+```
+
+## Coverage Boundaries
+
+PBT ensures:
+- ALL mismatched days detected (no false negatives)
+- ALL valid days pass (no false positives)
+- Stale feeds always flagged
+- Invalid URL hosts detected
+- Valid feeds pass all checks

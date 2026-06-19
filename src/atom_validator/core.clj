@@ -12,7 +12,14 @@
             [atom-validator.semantic :as semantic]
             [atom-validator.url :as url]))
 
-(def version "0.1.0-SNAPSHOT")
+(def version
+  "Library version, read from POM at compile time."
+  (delay
+    (or (some-> (clojure.java.io/resource "META-INF/maven/org.clojars.apace/atom-validator/pom.properties")
+                slurp
+                (->> (re-find #"version=(.+)"))
+                second)
+        "dev")))
 
 (defn- merge-results
   "Merge multiple validation result maps."

@@ -151,12 +151,18 @@ pass otp clojars/apace/totp
 # First time: install nvd-clojure
 clojure -Ttools install nvd-clojure/nvd-clojure '{:mvn/version "RELEASE"}' :as nvd
 
-# Run CVE scan
+# Get NVD API key (required for practical use)
+# https://nvd.nist.gov/developers/request-an-api-key
+# Add to nvd-clojure.edn: {:nvd {:nvd-api {:key "YOUR-KEY"}}}
+
+# Run CVE scan (advisory - continues on failure without API key)
 make nvd
 
-# Combined lint + CVE
+# Combined lint + CVE (nvd advisory only)
 make security
 ```
+
+**Note**: Without an API key, first NVD database download (~360K records) is extremely slow due to rate limiting.
 
 ## Development Setup
 

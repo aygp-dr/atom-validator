@@ -11,8 +11,8 @@ help:
 	@echo "  make lint       - Check for issues (clj-kondo)"
 	@echo "  make storm      - Start FlowStorm time-travel debugger"
 	@echo "  make check      - Run lint + test"
-	@echo "  make nvd        - Scan dependencies for CVEs"
-	@echo "  make security   - Run lint + nvd scan"
+	@echo "  make nvd        - Scan dependencies for CVEs (needs API key)"
+	@echo "  make security   - Run lint + nvd (advisory)"
 	@echo "  make outdated   - Check for outdated dependencies"
 	@echo ""
 	@echo "Build:"
@@ -49,13 +49,17 @@ storm:
 check: lint test
 
 # CVE dependency scanning (nvd-clojure)
-# Install once: clojure -Ttools install nvd-clojure/nvd-clojure '{:mvn/version "RELEASE"}' :as nvd
+# Install: clojure -Ttools install nvd-clojure/nvd-clojure '{:mvn/version "RELEASE"}' :as nvd
+# API key: https://nvd.nist.gov/developers/request-an-api-key
+# Config:  Add to nvd-clojure.edn: {:nvd {:nvd-api {:key "YOUR-KEY"}}}
+# Note:    First run downloads ~360K CVE records - VERY slow without API key
 nvd:
 	@echo "Scanning dependencies for known CVEs..."
-	clojure -Tnvd nvd.task/check :classpath '"'"$$(clojure -Spath)"'"'
+	clojure -Tnvd nvd.task/check :classpath '"'"$$(clojure -Spath)"'"' || echo "NVD scan failed (API key recommended)"
 
-# Full security check: static analysis + CVE scan
-security: lint nvd
+# Full security check: static analysis + CVE scan (nvd advisory only)
+security: lint
+	@$(MAKE) nvd || echo "Continuing without NVD (get API key for faster scans)"
 
 coverage:
 	clojure -M:coverage

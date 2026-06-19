@@ -1,0 +1,19 @@
+## Testing Contract
+
+Issue #2: Feed <updated> must be >= max(entry <updated>)
+
+```clojure
+;; MUST return :stale-feed-updated error
+(validate-feed {:updated "2026-06-14T00:00:00Z"
+                :entries [{:updated "2026-06-19T00:00:00Z" ...}]})
+```
+
+## Boundaries
+
+- Uses clj-time for RFC 3339 parsing
+- Tolerates missing milliseconds in timestamps
+- Returns {:errors [...] :warnings [...]}
+
+## PBT Coverage
+
+- prop-stale-feeds-always-invalid (10 runs)

@@ -10,10 +10,10 @@
 
 * Features
 
-- Structural validation per RFC 4287 (required elements, dates)
+- Structural validation per [[https://datatracker.ietf.org/doc/html/rfc4287][RFC 4287]] (required elements, dates)
 - Semantic checks (day-of-week in titles, feed freshness)
 - URL/IRI validation (detects typos like =wal.shsite= → =wal.sh/site=)
-- Property-based testing with test.check generators
+- Property-based testing with [[https://github.com/clojure/test.check][test.check]] generators
 
 * Installation
 
@@ -76,10 +76,10 @@
 ** Start the REPL
 
 #+begin_src bash
-# With CIDER middleware for Emacs
+# With [[https://docs.cider.mx][CIDER]] middleware for Emacs
 make repl
 
-# Or with FlowStorm time-travel debugger
+# Or with [[https://github.com/flow-storm/flow-storm-debugger][FlowStorm]] time-travel debugger
 make storm
 #+end_src
 
@@ -166,18 +166,18 @@ make storm
 | Command | Description |
 |---------+-------------|
 | =make test= | Run unit tests + property-based tests |
-| =make lint= | Run clj-kondo static analysis |
-| =make repl= | Start CIDER-enabled nREPL on port 7888 |
-| =make storm= | Start FlowStorm time-travel debugger |
+| =make lint= | Run [[https://github.com/clj-kondo/clj-kondo][clj-kondo]] static analysis |
+| =make repl= | Start [[https://docs.cider.mx][CIDER]]-enabled [[https://nrepl.org][nREPL]] on port 7888 |
+| =make storm= | Start [[https://github.com/flow-storm/flow-storm-debugger][FlowStorm]] time-travel debugger |
 | =make check= | Run lint + test |
 | =make jar= | Build JAR file |
 | =make install= | Install to local Maven repo |
-| =make deploy= | Deploy to Clojars (requires credentials) |
+| =make deploy= | Deploy to [[https://clojars.org][Clojars]] (requires credentials) |
 
 ** Connect from Emacs
 
 #+begin_src bash
-# Terminal 1: Start REPL in tmux
+# Terminal 1: Start REPL in [[https://github.com/tmux/tmux][tmux]]
 tmux new-session -s atom-validator -d 'make repl'
 
 # Emacs: Connect
@@ -186,18 +186,15 @@ M-x cider-connect RET localhost RET 7888
 
 ** Project Structure
 
-#+begin_example
-src/atom_validator/
-├── core.clj      # Main API: validate-feed, validate-entry, parse-feed
-├── parser.clj    # XML parsing with clojure.data.xml
-├── rules.clj     # RFC 4287 structural validation
-├── semantic.clj  # Semantic checks (day-of-week)
-└── url.clj       # URL/IRI validation
-
-test/atom_validator/
-├── core_test.clj    # Unit + property-based tests
-└── generators.clj   # test.check generators for Atom feeds
-#+end_example
+| File | Description |
+|------+-------------|
+| [[file:src/atom_validator/core.clj][core.clj]] | Main API: validate-feed, validate-entry, parse-feed |
+| [[file:src/atom_validator/parser.clj][parser.clj]] | XML parsing with [[https://github.com/clojure/data.xml][clojure.data.xml]] |
+| [[file:src/atom_validator/rules.clj][rules.clj]] | [[https://datatracker.ietf.org/doc/html/rfc4287][RFC 4287]] structural validation |
+| [[file:src/atom_validator/semantic.clj][semantic.clj]] | Semantic checks (day-of-week) |
+| [[file:src/atom_validator/url.clj][url.clj]] | URL/IRI validation |
+| [[file:test/atom_validator/core_test.clj][core_test.clj]] | Unit + property-based tests |
+| [[file:test/atom_validator/generators.clj][generators.clj]] | [[https://github.com/clojure/test.check][test.check]] generators for Atom feeds |
 
 * API Reference
 

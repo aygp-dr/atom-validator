@@ -1,0 +1,145 @@
+#+TITLE: Emacs Development Setup for atom-validator
+#+PROPERTY: header-args:emacs-lisp :results silent
+
+* Prerequisites
+
+** Required Packages
+
+Install via =M-x package-install=:
+
+| Package | Purpose |
+|---------+---------|
+| =clojure-mode= | Clojure syntax highlighting |
+| =cider= | CIDER for nREPL integration |
+| =paredit= | Structural editing |
+| =nyan-mode= | Progress indicator (optional) |
+
+** Org-Babel Setup
+
+For literate programming with org-mode, add to your init:
+
+#+begin_src emacs-lisp :tangle no
+(require 'ob-clojure)
+(setq org-babel-clojure-backend 'cider)
+
+;; Don't ask before evaluating code blocks
+(setq org-confirm-babel-evaluate nil)
+
+;; Languages to load
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((clojure . t)
+   (shell . t)))
+#+end_src
+
+* Quick Start
+
+** Start REPL
+
+#+begin_src bash :eval no
+cd ~/ghq/github.com/aygp-dr/atom-validator
+make repl
+#+end_src
+
+** Connect from Emacs
+
+1. Open =doc/live-examples.org=
+2. =M-x cider-connect RET localhost RET 7888=
+3. =C-c C-c= on any code block to execute
+
+* Keyboard Shortcuts
+
+** CIDER
+
+| Key | Action |
+|-----+--------|
+| =C-c C-k= | Compile buffer |
+| =C-c C-e= | Eval last sexp |
+| =C-c M-n n= | Switch to namespace |
+| =C-c C-d C-d= | Show documentation |
+| =C-c C-t t= | Run test at point |
+
+** Org-Babel
+
+| Key | Action |
+|-----+--------|
+| =C-c C-c= | Execute code block |
+| =C-c C-v b= | Execute all blocks |
+| =C-c '= | Edit in dedicated buffer |
+| =C-c C-v t= | Tangle file |
+
+** Paredit
+
+| Key | Action |
+|-----+--------|
+| =C-M-f= / =C-M-b= | Forward/backward sexp |
+| =C-M-k= | Kill sexp |
+| =M-(= | Wrap with parens |
+| =M-s= | Splice (remove parens) |
+
+* Minimal Init for Screenshots
+
+For clean screenshots with =emacs -Q=:
+
+#+begin_src emacs-lisp :tangle ~/.emacs.d/atom-validator-init.el
+;; Package setup
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+(package-initialize)
+
+;; Ensure packages
+(dolist (pkg '(clojure-mode cider paredit nyan-mode))
+  (unless (package-installed-p pkg)
+    (package-refresh-contents)
+    (package-install pkg)))
+
+;; Enable modes
+(require 'clojure-mode)
+(require 'cider)
+(require 'paredit)
+(require 'nyan-mode)
+(nyan-mode 1)
+
+;; Org-babel for Clojure
+(require 'ob-clojure)
+(setq org-babel-clojure-backend 'cider)
+(setq org-confirm-babel-evaluate nil)
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((clojure . t) (shell . t)))
+
+;; Hooks
+(add-hook 'clojure-mode-hook #'paredit-mode)
+(add-hook 'cider-repl-mode-hook #'paredit-mode)
+#+end_src
+
+Load with:
+
+#+begin_src bash :eval no
+emacs -Q -l ~/.emacs.d/atom-validator-init.el
+#+end_src
+
+* Babashka Integration
+
+For quick scripting without JVM startup:
+
+#+begin_src bash :eval no
+bb examples/validate-feed.bb https://xkcd.com/atom.xml
+#+end_src
+
+In eshell:
+
+#+begin_src emacs-lisp :eval no
+M-x eshell
+cd ~/atom-validator/examples
+bb validate-feed.bb https://github.com/clojure/clojure/releases.atom
+#+end_src
+
+* FlowStorm Debugging
+
+Time-travel debugger:
+
+#+begin_src bash :eval no
+make storm
+# Then in REPL: (flow-storm.api/local-connect)
+#+end_src

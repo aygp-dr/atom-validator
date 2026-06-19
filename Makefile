@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy outdated lint
+.PHONY: help clean test repl jar install deploy outdated lint lint-fix storm check
 
 CLOJARS_USER := apace
 
@@ -6,9 +6,11 @@ help:
 	@echo "atom-validator - RFC 4287 Atom feed validation"
 	@echo ""
 	@echo "Development:"
-	@echo "  make repl       - Start REPL with dev dependencies"
+	@echo "  make repl       - Start REPL with CIDER middleware"
 	@echo "  make test       - Run test suite"
-	@echo "  make lint       - Check for issues"
+	@echo "  make lint       - Check for issues (clj-kondo)"
+	@echo "  make storm      - Start FlowStorm time-travel debugger"
+	@echo "  make check      - Run lint + test"
 	@echo "  make outdated   - Check for outdated dependencies"
 	@echo ""
 	@echo "Build:"
@@ -26,7 +28,19 @@ test:
 	clj -X:test
 
 repl:
-	clj -A:dev
+	clj -M:dev:test -m nrepl.cmdline \
+		--middleware '[cider.nrepl/cider-middleware]' \
+		--bind 127.0.0.1 --port 7888
+
+lint:
+	clj -M:lint
+
+# FlowStorm time-travel debugger
+# After starting, run: (flow-storm.api/local-connect)
+storm:
+	clj -A:storm:test
+
+check: lint test
 
 jar:
 	clj -T:build jar
@@ -44,6 +58,3 @@ deploy:
 
 outdated:
 	clj -M:outdated
-
-lint:
-	@echo "No linter configured yet"

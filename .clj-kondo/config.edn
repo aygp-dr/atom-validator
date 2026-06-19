@@ -1,0 +1,7 @@
+{:linters {:unused-namespace {:level :warning}
+           :unused-binding {:level :warning}
+           :redundant-do {:level :warning}
+           :missing-docstring {:level :off}
+           :unresolved-symbol {:exclude [(clojure.test.check.clojure-test/defspec)]}}
+ :lint-as {clojure.test.check.properties/for-all clojure.core/let
+           clojure.test.check.clojure-test/defspec clojure.test/deftest}}

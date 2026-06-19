@@ -1,0 +1,276 @@
+#+TITLE: Contributing to atom-validator
+#+AUTHOR: aygp-dr
+
+* Local Development Setup
+
+** Prerequisites
+
+- Clojure CLI 1.12+
+- GPG key configured
+- =pass= password manager initialized
+
+** Clojars Credentials
+
+Credentials are managed via =pass=. See [[file:~/ghq/github.com/aygp-dr/hydra-setup/clojars-setup.org][hydra-setup/clojars-setup.org]] for full setup.
+
+Quick reference:
+
+#+begin_src bash
+# Structure
+pass ls clojars/apace
+# clojars/apace/
+# ├── password        # Login
+# ├── totp            # 2FA codes
+# ├── recovery-code   # Emergency
+# └── deploy-token    # Publishing
+
+# Generate 2FA code
+pass otp clojars/apace/totp
+
+# Get deploy token
+pass clojars/apace/deploy-token
+#+end_src
+
+** Running Tests
+
+#+begin_src bash
+make test
+#+end_src
+
+** Building
+
+#+begin_src bash
+make jar        # Build JAR
+make install    # Install to ~/.m2
+#+end_src
+
+** Publishing to Clojars
+
+Requires deploy token in =pass clojars/apace/deploy-token=:
+
+#+begin_src bash
+make deploy
+#+end_src
+
+* Project Structure
+
+#+begin_example
+atom-validator/
+├── deps.edn           # Dependencies and aliases
+├── build.clj          # Build/deploy tasks
+├── Makefile           # Convenience targets
+├── src/
+│   └── atom_validator/
+│       ├── core.clj       # Main API
+│       ├── parser.clj     # XML parsing
+│       ├── rules.clj      # Validation rules
+│       └── semantic.clj   # Semantic checks (day-of-week, etc.)
+└── test/
+    └── atom_validator/
+        └── core_test.clj
+#+end_example
+
+* Validation Rules
+
+Implement rules from GitHub issues:
+
+| Issue | Rule | Module |
+|-------+------+--------|
+| #1 | Title day-of-week matches =<updated>= date | =semantic.clj= |
+| #2 | Feed =<updated>= >= max(entry =<updated>=) | =rules.clj= |
+| #3 | Entry URLs are valid absolute URLs | =rules.clj= |
+
+* Versioning
+
+Version is auto-generated from git commit count: =0.1.<git-rev-count>=
+
+For releases, tag with =v0.1.x= and update =build.clj= if needed.
+
+* Security
+
+*THIS IS A PUBLIC REPOSITORY*
+
+** Hard Rules
+
+- *NEVER* commit secrets, tokens, or credentials
+- *NEVER* hardcode API keys, passwords, or tokens in code
+- *NO* =.env= files with real values in git
+- *NO* deploy tokens in CI workflow files
+
+** Where Secrets Live
+
+| Secret | Storage | Scope | Expires |
+|--------+---------+-------+---------|
+| CI deploy token | =pass clojars/apace/deploy-token= | =*= | Never |
+| Local deploy token | =pass clojars/apace/deploy-token-hydra= | =net.clojars.apace/*= | 90 days |
+| 2FA codes | =pass clojars/apace/totp= | - | - |
+| Recovery code | =pass clojars/apace/recovery-code= | - | One-time |
+
+- *CI token* → GitHub Secrets (=CLOJARS_USERNAME=, =CLOJARS_PASSWORD=)
+- *Local token* → =make deploy= uses =deploy-token-hydra=
+
+** GitHub Actions Secrets
+
+For CI/CD, secrets are stored in GitHub repo settings, *not* in code.
+
+Go to: Repository → Settings → Secrets and variables → Actions
+
+| Secret Name | Value |
+|-------------+-------|
+| =CLOJARS_USERNAME= | Deploy token (yes, token for both) |
+| =CLOJARS_PASSWORD= | Deploy token (same value) |
+
+** Creating Deploy Tokens
+
+Browser console script for Clojars token form:
+
+#+begin_src javascript
+// Fill Clojars deploy token form
+document.getElementById('name').value = 'github-actions';
+document.getElementById('scope').value = '';  // * (all groups)
+document.getElementById('single_use').checked = false;
+document.getElementById('expires_in').value = '';  // Never
+console.log('Form filled. Review and click Create Token.');
+#+end_src
+
+After creation, store locally:
+
+#+begin_src bash
+pass insert clojars/apace/deploy-token
+# Paste: CLOJARS_xxxx...
+#+end_src
+
+** Pre-commit Checks
+
+Before committing, verify no secrets:
+
+#+begin_src bash
+# Search for potential secrets
+grep -rn "CLOJARS_" --include="*.clj" --include="*.edn" .
+grep -rn "password\|token\|secret\|key" --include="*.clj" .
+#+end_src
+
+** If You Accidentally Commit a Secret
+
+1. *Immediately* rotate the token at https://clojars.org/tokens
+2. Remove from git history (or accept it's leaked)
+3. Store new token in =pass=
+4. Update GitHub Secrets if CI token
+
+* CI/CD Setup
+
+** GitHub Actions Workflow
+
+Located at =.github/workflows/release.yml=
+
+Triggered on version tags:
+
+#+begin_src bash
+git tag v0.1.0
+git push origin v0.1.0
+#+end_src
+
+** Required GitHub Secrets
+
+Set these in repo Settings → Secrets → Actions:
+
+1. =CLOJARS_USERNAME= - Your deploy token
+2. =CLOJARS_PASSWORD= - Same deploy token (Clojars uses token for both)
+
+** Local Deploy
+
+Uses =pass= to retrieve credentials:
+
+#+begin_src bash
+make deploy
+#+end_src
+
+Equivalent to:
+
+#+begin_src bash
+CLOJARS_USERNAME=$(pass clojars/apace/deploy-token) \
+CLOJARS_PASSWORD=$(pass clojars/apace/deploy-token) \
+clj -T:build deploy
+#+end_src
+
+* Secret Rotation Policy
+
+** Token Lifetimes
+
+| Token | Scope | Rotation |
+|-------+-------+----------|
+| =deploy-token= (CI) | =*= | On compromise or annually |
+| =deploy-token-hydra= (local) | =net.clojars.apace/*= | Every 90 days (auto-expires) |
+| =password= | Login | On compromise |
+| =totp= | 2FA | On device change |
+
+** Rotation Procedure (CLI)
+
+All rotation is done via CLI to avoid manual errors:
+
+#+begin_src bash
+# 1. Create new token at Clojars (browser - use console script)
+# 2. Store new token
+pass insert clojars/apace/deploy-token-NEW
+
+# 3. Update GitHub secrets
+pass clojars/apace/deploy-token-NEW | gh secret set CLOJARS_USERNAME --repo aygp-dr/atom-validator
+pass clojars/apace/deploy-token-NEW | gh secret set CLOJARS_PASSWORD --repo aygp-dr/atom-validator
+
+# 4. Verify
+gh secret list --repo aygp-dr/atom-validator
+
+# 5. Test deploy (dry run or to a test artifact)
+make deploy
+
+# 6. Archive old token, promote new
+pass mv clojars/apace/deploy-token clojars/apace/deploy-token-OLD-$(date +%Y%m%d)
+pass mv clojars/apace/deploy-token-NEW clojars/apace/deploy-token
+
+# 7. Revoke old token at Clojars (browser)
+# 8. Delete archived token after confirming new one works
+pass rm clojars/apace/deploy-token-OLD-*
+#+end_src
+
+** Alignment Check
+
+Verify =pass= and GitHub secrets are in sync:
+
+#+begin_src bash
+# Compare token prefixes (safe - only shows first 20 chars)
+echo "pass:   $(pass clojars/apace/deploy-token | cut -c1-20)"
+echo "github: (secrets are write-only, verify via test deploy)"
+
+# Full alignment check
+make deploy  # Uses local token
+git tag v0.0.0-test && git push origin v0.0.0-test  # Triggers CI
+gh run list --repo aygp-dr/atom-validator --limit 1  # Check CI result
+git push origin :v0.0.0-test  # Clean up test tag
+#+end_src
+
+** Scheduled Reminders
+
+Add to calendar or cron:
+
+#+begin_src bash
+# Remind to rotate hydra-local token (90-day expiry)
+# Current token created: 2026-06-19
+# Expires: 2026-09-17
+
+echo "0 9 17 9 * pass otp clojars/apace/totp && echo 'Rotate deploy-token-hydra'" | crontab -
+#+end_src
+
+** Emergency Rotation (Compromise)
+
+If a token is leaked:
+
+#+begin_src bash
+# 1. IMMEDIATELY revoke at Clojars (browser)
+# 2. Create new token
+# 3. Update pass
+pass insert clojars/apace/deploy-token
+# 4. Update GitHub
+pass clojars/apace/deploy-token | gh secret set CLOJARS_USERNAME --repo aygp-dr/atom-validator
+pass clojars/apace/deploy-token | gh secret set CLOJARS_PASSWORD --repo aygp-dr/atom-validator
+# 5. Audit: check Clojars for unauthorized publishes
+#+end_src

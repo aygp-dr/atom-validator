@@ -1,0 +1,40 @@
+name: Release to Clojars
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@12.5
+        with:
+          cli: latest
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.clojure/.cpcache
+          key: ${{ runner.os }}-clojure-${{ hashFiles('deps.edn') }}
+
+      - name: Deploy to Clojars
+        env:
+          CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
+        run: clj -T:build deploy
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/*.jar
+          generate_release_notes: true

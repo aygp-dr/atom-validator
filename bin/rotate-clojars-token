@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+#
+# Rotate Clojars deploy tokens
+# Usage: ./bin/rotate-clojars-token [ci|local]
+#
+set -euo pipefail
+
+CLOJARS_USER="apace"
+REPO="aygp-dr/atom-validator"
+
+usage() {
+    echo "Usage: $0 [ci|local|check]"
+    echo ""
+    echo "Commands:"
+    echo "  ci     Rotate CI deploy token (deploy-token)"
+    echo "  local  Rotate local deploy token (deploy-token-hydra)"
+    echo "  check  Show current token status"
+    exit 1
+}
+
+check_status() {
+    echo "=== Token Status ==="
+    echo ""
+    echo "pass entries:"
+    pass ls clojars/$CLOJARS_USER
+    echo ""
+    echo "GitHub secrets:"
+    gh secret list --repo "$REPO"
+    echo ""
+    echo "Token prefixes (first 20 chars):"
+    echo "  deploy-token:       $(pass clojars/$CLOJARS_USER/deploy-token 2>/dev/null | cut -c1-20 || echo 'NOT SET')"
+    echo "  deploy-token-hydra: $(pass clojars/$CLOJARS_USER/deploy-token-hydra 2>/dev/null | cut -c1-20 || echo 'NOT SET')"
+}
+
+rotate_ci() {
+    echo "=== Rotating CI Token ==="
+    echo ""
+    echo "Step 1: Create new token at https://clojars.org/tokens"
+    echo "        Name: github-actions-$(date +%Y%m%d)"
+    echo "        Scope: *"
+    echo "        Expires: Never"
+    echo ""
+    echo "Console script to paste:"
+    echo '  document.getElementById("name").value = "github-actions-'$(date +%Y%m%d)'";'
+    echo '  document.getElementById("scope").value = "";'
+    echo '  document.getElementById("expires_in").value = "";'
+    echo ""
+    read -p "Press Enter after creating token, then paste it: " NEW_TOKEN
+
+    if [[ ! "$NEW_TOKEN" =~ ^CLOJARS_ ]]; then
+        echo "Error: Token should start with CLOJARS_"
+        exit 1
+    fi
+
+    echo ""
+    echo "Step 2: Storing new token..."
+    echo "$NEW_TOKEN" | pass insert -e clojars/$CLOJARS_USER/deploy-token-NEW
+
+    echo ""
+    echo "Step 3: Updating GitHub secrets..."
+    pass clojars/$CLOJARS_USER/deploy-token-NEW | gh secret set CLOJARS_USERNAME --repo "$REPO"
+    pass clojars/$CLOJARS_USER/deploy-token-NEW | gh secret set CLOJARS_PASSWORD --repo "$REPO"
+
+    echo ""
+    echo "Step 4: Verifying..."
+    gh secret list --repo "$REPO"
+
+    echo ""
+    read -p "Test deploy successful? (y/n): " CONFIRM
+    if [[ "$CONFIRM" == "y" ]]; then
+        echo "Step 5: Archiving old token..."
+        pass mv clojars/$CLOJARS_USER/deploy-token "clojars/$CLOJARS_USER/deploy-token-OLD-$(date +%Y%m%d)" 2>/dev/null || true
+        pass mv clojars/$CLOJARS_USER/deploy-token-NEW clojars/$CLOJARS_USER/deploy-token
+        echo ""
+        echo "Step 6: MANUAL - Revoke old token at https://clojars.org/tokens"
+        echo "Step 7: Run 'pass rm clojars/$CLOJARS_USER/deploy-token-OLD-*' after confirming"
+    else
+        echo "Rotation aborted. New token saved as deploy-token-NEW"
+    fi
+}
+
+rotate_local() {
+    echo "=== Rotating Local Token ==="
+    echo ""
+    echo "Step 1: Create new token at https://clojars.org/tokens"
+    echo "        Name: hydra-local-$(date +%Y%m%d)"
+    echo "        Scope: net.clojars.$CLOJARS_USER"
+    echo "        Expires: 90 days"
+    echo ""
+    echo "Console script to paste:"
+    echo '  document.getElementById("name").value = "hydra-local-'$(date +%Y%m%d)'";'
+    echo '  document.getElementById("scope").value = "net.clojars.'$CLOJARS_USER'";'
+    echo '  document.getElementById("expires_in").value = "2160";'
+    echo ""
+    read -p "Press Enter after creating token, then paste it: " NEW_TOKEN
+
+    if [[ ! "$NEW_TOKEN" =~ ^CLOJARS_ ]]; then
+        echo "Error: Token should start with CLOJARS_"
+        exit 1
+    fi
+
+    echo ""
+    echo "Step 2: Storing new token..."
+    echo "$NEW_TOKEN" | pass insert -e clojars/$CLOJARS_USER/deploy-token-hydra
+
+    echo ""
+    echo "Step 3: Test with 'make deploy'"
+    echo ""
+    echo "Step 4: MANUAL - Revoke old token at https://clojars.org/tokens"
+    echo ""
+    echo "Next rotation due: $(date -v+90d +%Y-%m-%d 2>/dev/null || date -d '+90 days' +%Y-%m-%d)"
+}
+
+case "${1:-}" in
+    ci)    rotate_ci ;;
+    local) rotate_local ;;
+    check) check_status ;;
+    *)     usage ;;
+esac

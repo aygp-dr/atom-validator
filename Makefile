@@ -49,11 +49,11 @@ install:
 	clj -T:build install
 
 # Deploy to Clojars using pass for credentials
-# Both CLOJARS_USERNAME and CLOJARS_PASSWORD should be the deploy token
+# Username is account name, password is deploy token
 deploy:
-	@echo "Deploying to Clojars as $(CLOJARS_USER) (hydra-local token)..."
-	CLOJARS_USERNAME=$$(pass clojars/$(CLOJARS_USER)/deploy-token-hydra) \
-	CLOJARS_PASSWORD=$$(pass clojars/$(CLOJARS_USER)/deploy-token-hydra) \
+	@echo "Deploying to Clojars as $(CLOJARS_USER)..."
+	CLOJARS_USERNAME=$(CLOJARS_USER) \
+	CLOJARS_PASSWORD=$$(pass show clojars/$(CLOJARS_USER)/deploy-token-hydra) \
 	clj -T:build deploy
 
 outdated:

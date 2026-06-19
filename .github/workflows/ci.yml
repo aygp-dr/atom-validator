@@ -51,6 +51,15 @@ jobs:
       - name: Run unit tests
         run: clojure -X:test
 
+      - name: Run coverage
+        run: clojure -M:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: target/coverage/codecov.json
+          fail_ci_if_error: false
+
   build:
     runs-on: ubuntu-latest
     needs: [lint, test]

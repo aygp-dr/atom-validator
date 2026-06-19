@@ -33,6 +33,13 @@
   :lint {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2024.09.27"}}
          :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"]}
 
+  :coverage {:extra-paths ["test"]
+             :extra-deps {cloverage/cloverage {:mvn/version "1.2.4"}
+                          org.clojure/test.check {:mvn/version "1.1.1"}}
+             :main-opts ["-m" "cloverage.coverage"
+                         "-p" "src" "-s" "test"
+                         "--codecov"]}
+
   :outdated {:deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
              :main-opts ["-m" "antq.core"]}
 

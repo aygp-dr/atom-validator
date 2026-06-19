@@ -30,6 +30,14 @@
 [org.clojars.apace/atom-validator "RELEASE"]
 #+end_src
 
+* Development Workflow
+
+Org-mode literate programming with live REPL evaluation:
+
+[[file:images/04-error-handling.png]]
+
+See [[file:doc/emacs-setup.org][Emacs setup guide]] for configuration.
+
 * Quick Start
 
 ** Require the namespace

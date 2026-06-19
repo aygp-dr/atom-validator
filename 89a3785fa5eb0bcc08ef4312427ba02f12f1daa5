@@ -1,0 +1,24 @@
+## Testing Contract
+
+Issue #3: Entry URLs must be valid absolute URLs
+
+```clojure
+;; MUST return :invalid-url-host error
+(validate-entry {:id "https://wal.shsite/event/" ...})
+;; 'wal.shsite' looks like typo for 'wal.sh/site'
+
+;; MUST accept URN identifiers
+(validate-entry {:id "urn:uuid:123..." ...})
+;; => no URL error
+```
+
+## Boundaries
+
+- Uses lambdaisland/uri for parsing
+- urn:uuid:* always valid for atom:id
+- TLD heuristics may have false positives
+
+## PBT Coverage
+
+- prop-invalid-url-hosts-detected (20 runs)
+- prop-valid-entries-have-no-url-errors (20 runs)

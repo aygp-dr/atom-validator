@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.28] - 2026-06-19
+## [0.1.36] - 2026-06-19
 
 ### Added
 - cljdoc articles: Getting Started, Validation Rules

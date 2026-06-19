@@ -31,6 +31,8 @@ target/coverage/
 
 # Security scanning
 .nvd/
+nvd-clojure.edn
+nvd_suppressions.xml
 
 # Core dumps
 *.core

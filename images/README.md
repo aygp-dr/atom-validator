@@ -9,9 +9,9 @@ X11 Emacs screenshots demonstrating atom-validator usage patterns.
 | 01 | `01-org-literate.png` | Org-mode literate programming with inline results |
 | 02 | `02-babashka-eshell.png` | Babashka script with eshell execution |
 | 03 | `03-cider-repl.png` | CIDER REPL split with source code |
-| 04 | `04-error-handling.png` | Validation error examples (day-of-week, invalid URL) |
-| 05 | `05-property-testing.png` | Property-based testing with test.check |
-| 06 | `06-test-runner.png` | Test runner output in compilation buffer |
+| 04 | `04-error-handling.png` | Validation error examples with REPL (split window) |
+| 05 | `05-property-testing.png` | Property-based testing with test.check + REPL |
+| 06 | `06-test-runner.png` | Test runner with REPL showing results (split window) |
 
 ## Setup
 

@@ -21,7 +21,11 @@
                 :scm {:url "https://github.com/aygp-dr/atom-validator"
                       :connection "scm:git:git://github.com/aygp-dr/atom-validator.git"
                       :developerConnection "scm:git:ssh://git@github.com/aygp-dr/atom-validator.git"
-                      :tag (str "v" version)}})
+                      :tag (str "v" version)}
+                :pom-data [[:licenses
+                            [:license
+                             [:name "MIT"]
+                             [:url "https://opensource.org/licenses/MIT"]]]]})
   (b/copy-dir {:src-dirs ["src" "resources"]
                :target-dir class-dir})
   (b/jar {:class-dir class-dir

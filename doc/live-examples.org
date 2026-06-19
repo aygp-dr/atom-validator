@@ -1,19 +1,35 @@
 #+TITLE: atom-validator Live Examples
-#+PROPERTY: header-args:clojure :backend cider :session atom-validator
+#+PROPERTY: header-args:clojure :backend cider :session atom-validator :results output
 
-Validate real-world Atom feeds using CIDER in Emacs.
+Literate programming workflow for validating Atom feeds.
 
 * Setup
 
-Start the REPL first:
+** Start REPL (Terminal)
 
-#+begin_src bash :results output
-make repl &
-sleep 10
-echo "REPL started on port 7888"
+#+begin_src bash :eval no
+# Option 1: Make target
+make repl
+
+# Option 2: Direct
+clj -M:dev:test -m nrepl.cmdline \
+    --middleware '[cider.nrepl/cider-middleware]' \
+    --bind 127.0.0.1 --port 7888
 #+end_src
 
-Then connect from Emacs: =M-x cider-connect RET localhost RET 7888=
+** Connect from Emacs
+
+1. =M-x cider-connect RET localhost RET 7888=
+2. Or with this file open: =C-c C-c= on any code block
+
+** Keyboard Shortcuts
+
+| Key       | Action                          |
+|-----------+---------------------------------|
+| =C-c C-c= | Execute code block at point     |
+| =C-c C-v b= | Execute all blocks in buffer  |
+| =C-c '=   | Edit block in dedicated buffer  |
+| =C-c C-o= | Open results in separate buffer |
 
 * Initialize
 

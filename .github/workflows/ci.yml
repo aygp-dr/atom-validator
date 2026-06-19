@@ -7,6 +7,28 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@12.5
+        with:
+          cli: latest
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            ~/.clojure/.cpcache
+          key: ${{ runner.os }}-clojure-${{ hashFiles('deps.edn') }}
+
+      - name: Run clj-kondo
+        run: clj -M:lint
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -26,12 +48,12 @@ jobs:
             ~/.clojure/.cpcache
           key: ${{ runner.os }}-clojure-${{ hashFiles('deps.edn') }}
 
-      - name: Run tests
+      - name: Run unit tests
         run: clj -X:test
 
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
         with:

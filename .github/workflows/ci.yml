@@ -27,7 +27,7 @@ jobs:
           key: ${{ runner.os }}-clojure-${{ hashFiles('deps.edn') }}
 
       - name: Run clj-kondo
-        run: clj -M:lint
+        run: clojure -M:lint
 
   test:
     runs-on: ubuntu-latest
@@ -49,7 +49,7 @@ jobs:
           key: ${{ runner.os }}-clojure-${{ hashFiles('deps.edn') }}
 
       - name: Run unit tests
-        run: clj -X:test
+        run: clojure -X:test
 
   build:
     runs-on: ubuntu-latest
@@ -74,7 +74,7 @@ jobs:
           key: ${{ runner.os }}-clojure-${{ hashFiles('deps.edn') }}
 
       - name: Build JAR
-        run: clj -T:build jar
+        run: clojure -T:build jar
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

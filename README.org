@@ -2,15 +2,9 @@
 #+AUTHOR: aygp-dr
 #+DATE: 2026-06-19
 
-#+begin_html
-<p>
-  <a href="https://github.com/aygp-dr/atom-validator/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/aygp-dr/atom-validator/ci.yml?branch=main&label=CI&style=flat-square" alt="CI"></a>
-  <a href="https://codecov.io/gh/aygp-dr/atom-validator"><img src="https://codecov.io/gh/aygp-dr/atom-validator/branch/main/graph/badge.svg" alt="Coverage"></a>
-  <a href="https://clojars.org/org.clojars.apace/atom-validator"><img src="https://img.shields.io/clojars/v/org.clojars.apace/atom-validator.svg?style=flat-square" alt="Clojars"></a>
-  <a href="https://cljdoc.org/d/org.clojars.apace/atom-validator"><img src="https://cljdoc.org/badge/org.clojars.apace/atom-validator" alt="cljdoc"></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT"></a>
-</p>
-#+end_html
+[[https://github.com/aygp-dr/atom-validator/actions/workflows/ci.yml][https://img.shields.io/github/actions/workflow/status/aygp-dr/atom-validator/ci.yml?branch=main&label=CI]]
+[[https://clojars.org/org.clojars.apace/atom-validator][https://img.shields.io/clojars/v/org.clojars.apace/atom-validator.svg]]
+[[https://opensource.org/licenses/MIT][https://img.shields.io/badge/License-MIT-blue.svg]]
 
 RFC 4287 Atom feed validator with property-based testing for Clojure.
 
@@ -245,6 +239,29 @@ Returns parsed feed as Clojure map with =:id=, =:title=, =:updated=, =:entries=,
 #+end_src
 
 Quick check - returns =true= or =false=.
+
+* Releasing
+
+Version is derived from git commit count (=0.1.N= where N = commits).
+
+#+begin_src bash
+# 1. Ensure tests pass
+make check
+
+# 2. Audit JAR for secrets
+bin/validate-deploy
+
+# 3. Tag and deploy (version auto-increments)
+git tag v0.1.$(git rev-list --count HEAD)
+git push origin --tags
+make deploy
+
+# 4. Trigger cljdoc build
+curl -X POST "https://cljdoc.org/api/request-build2" \
+  -d "project=org.clojars.apace/atom-validator&version=0.1.$(git rev-list --count HEAD)"
+#+end_src
+
+Note: Clojars does not allow redeploying non-SNAPSHOT versions.
 
 * License
 

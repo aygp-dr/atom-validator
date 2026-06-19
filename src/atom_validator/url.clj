@@ -19,6 +19,20 @@
   (when url-str
     (re-matches #"^urn:[a-zA-Z0-9][a-zA-Z0-9-]*:.*$" url-str)))
 
+(defn tag-uri?
+  "Check if a URL is a tag: URI per RFC 4151 (e.g., tag:github.com,2008:...).
+   Format: tag:<authority>,<date>:<specific>"
+  [url-str]
+  (when url-str
+    (re-matches #"^tag:[a-zA-Z0-9.-]+,\d{4}(-\d{2}(-\d{2})?)?:.*$" url-str)))
+
+(defn valid-iri-for-id?
+  "Check if string is a valid IRI for atom:id per RFC 4287.
+   Allows: URNs (urn:uuid:...), tag URIs (tag:...), and absolute URLs."
+  [url-str]
+  (or (urn? url-str)
+      (tag-uri? url-str)))
+
 (defn valid-scheme?
   "Check if URL has a valid scheme (http, https)."
   [parsed]
@@ -59,10 +73,11 @@
 
 (defn validate-url
   "Validate a URL string. Returns error map or nil if valid.
-   URN identifiers (urn:uuid:...) are always valid for atom:id elements."
-  [url-str context & {:keys [allow-urn?] :or {allow-urn? false}}]
+   URN identifiers (urn:uuid:...) and tag: URIs are valid for atom:id per RFC 4287."
+  [url-str context & {:keys [allow-iri?] :or {allow-iri? false}}]
   (cond
-    (and allow-urn? (urn? url-str))
+    ;; Allow URNs and tag: URIs for atom:id elements
+    (and allow-iri? (valid-iri-for-id? url-str))
     nil
 
     :else
@@ -93,10 +108,10 @@
 
 (defn validate-entry-urls
   "Validate all URLs in an entry (id, links).
-   Note: atom:id can be a URN (e.g., urn:uuid:...) per RFC 4287."
+   Note: atom:id can be a URN or tag: URI per RFC 4287/RFC 4151."
   [entry idx]
   (let [id-error (when (:id entry)
-                   (validate-url (:id entry) [:entries idx :id] :allow-urn? true))
+                   (validate-url (:id entry) [:entries idx :id] :allow-iri? true))
         link-errors (keep-indexed
                      (fn [link-idx link]
                        (when (:href link)

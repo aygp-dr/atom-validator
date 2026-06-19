@@ -22,7 +22,8 @@
                       :connection "scm:git:git://github.com/aygp-dr/atom-validator.git"
                       :developerConnection "scm:git:ssh://git@github.com/aygp-dr/atom-validator.git"
                       :tag (str "v" version)}
-                :pom-data [[:licenses
+                :pom-data [[:description "RFC 4287 Atom feed validator for Clojure with property-based testing"]
+                           [:licenses
                             [:license
                              [:name "MIT"]
                              [:url "https://opensource.org/licenses/MIT"]]]]})

@@ -1,0 +1,17 @@
+## Testing Contract
+
+- `make lint` must exit 0 with no errors
+- `make repl` starts nREPL on :7888
+- FlowStorm requires `(flow-storm.api/local-connect)` after `make storm`
+
+## Boundaries
+
+- clj-kondo runs via deps.edn alias, not system binary
+- REPL binds to 127.0.0.1 only (security)
+- CIDER middleware for Emacs integration
+
+## Validation
+
+```bash
+clj -M:lint  # exits 0
+```

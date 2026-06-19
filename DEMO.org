@@ -1,0 +1,304 @@
+#+TITLE: Demo Preparation — atom-validator
+#+AUTHOR: aygp-dr
+#+DATE: 2026-06-19
+
+* Overview
+
+This document covers how to prepare and record demonstrations of
+atom-validator for documentation and the project README.
+
+* Prerequisites
+
+#+begin_src bash
+# FreeBSD packages
+sudo pkg install -y tmux asciinema ImageMagick7
+
+# Optional: For X11 screenshots
+sudo pkg install -y xorg-vfbserver xdotool
+#+end_src
+
+* Demo Script
+
+The demo shows three validation scenarios from the GitHub issues:
+
+1. Day-of-week mismatch (Issue #1)
+2. Stale feed timestamp (Issue #2)
+3. Invalid URL host (Issue #3)
+
+* Method 1: Asciinema Recording (Recommended)
+
+Asciinema creates terminal recordings that can be embedded or shared.
+
+** Record the Demo
+
+#+begin_src bash
+cd ~/ghq/github.com/aygp-dr/atom-validator
+
+# Start recording
+asciinema rec demo.cast --title "atom-validator demo" --idle-time-limit 2
+
+# Inside recording: run the REPL demo
+clj -A:dev:test
+
+# Run demo commands (see below)
+# Then exit REPL and recording with Ctrl-D twice
+#+end_src
+
+** Demo Commands (copy-paste into REPL)
+
+#+begin_src clojure
+;; Load the validator
+(require '[atom-validator.core :as v])
+
+;; Demo 1: Day-of-week mismatch
+(v/validate-entry {:title "Morning Brief: Thursday, June 19"
+                   :updated "2026-06-19T00:00:00Z"
+                   :id "urn:uuid:1"
+                   :links [{:href "https://example.com/" :rel "alternate"}]})
+
+;; Demo 2: Stale feed
+(v/validate-feed {:id "urn:uuid:feed"
+                  :title "News"
+                  :updated "2026-06-14T00:00:00Z"
+                  :entries [{:id "urn:uuid:1"
+                             :title "Breaking"
+                             :updated "2026-06-19T00:00:00Z"
+                             :links [{:href "https://example.com/" :rel "alternate"}]}]})
+
+;; Demo 3: Invalid URL
+(v/validate-entry {:id "https://wal.shsite/event/"
+                   :title "Event"
+                   :updated "2026-06-19T00:00:00Z"
+                   :links [{:href "https://wal.shsite/event/" :rel "alternate"}]})
+
+;; Demo 4: Valid feed
+(v/valid? {:id "urn:uuid:feed"
+           :title "My Blog"
+           :updated "2026-06-19T12:00:00Z"
+           :entries [{:id "urn:uuid:1"
+                      :title "Hello World"
+                      :updated "2026-06-19T10:00:00Z"
+                      :links [{:href "https://example.com/" :rel "alternate"}]}]})
+#+end_src
+
+** Convert to GIF or SVG
+
+#+begin_src bash
+# Convert to GIF (requires agg or svg-term)
+# Option 1: Use asciinema's online player
+asciinema upload demo.cast
+# Returns URL like: https://asciinema.org/a/xxxxx
+
+# Option 2: Local SVG (with svg-term-cli from npm)
+npm install -g svg-term-cli
+svg-term --in demo.cast --out images/demo.svg --window
+
+# Option 3: Local GIF (with agg)
+# cargo install agg
+agg demo.cast images/demo.gif
+#+end_src
+
+** Embed in README
+
+#+begin_src markdown
+## Demo
+
+[![asciicast](https://asciinema.org/a/xxxxx.svg)](https://asciinema.org/a/xxxxx)
+#+end_src
+
+Or for local SVG:
+
+#+begin_src org
+[[file:images/demo.svg]]
+#+end_src
+
+* Method 2: tmux Session with Manual Screenshots
+
+** Start the Demo Session
+
+#+begin_src bash
+# Create tmux session
+tmux new-session -s atom-demo -d
+
+# Send commands to the session
+tmux send-keys -t atom-demo 'cd ~/ghq/github.com/aygp-dr/atom-validator' Enter
+tmux send-keys -t atom-demo 'clj -A:dev:test' Enter
+
+# Wait for REPL to start
+sleep 10
+
+# Send demo code
+tmux send-keys -t atom-demo "(require '[atom-validator.core :as v])" Enter
+sleep 2
+#+end_src
+
+** Capture tmux Pane Content
+
+#+begin_src bash
+# Capture as text (for documentation)
+tmux capture-pane -t atom-demo -p > images/repl-session.txt
+
+# Capture with ANSI colors (for rendering)
+tmux capture-pane -t atom-demo -p -e > images/repl-session.ansi
+#+end_src
+
+** Convert ANSI to Image
+
+#+begin_src bash
+# Using aha (HTML with ANSI)
+sudo pkg install -y aha
+tmux capture-pane -t atom-demo -p -e | aha > images/repl-session.html
+
+# Then screenshot the HTML or convert with wkhtmltoimage
+wkhtmltoimage images/repl-session.html images/repl-session.png
+#+end_src
+
+* Method 3: X11 Screenshots (Emacs/CIDER)
+
+For visual Emacs screenshots with nyan-mode and syntax highlighting.
+
+** Setup Xvfb
+
+#+begin_src bash
+# Start virtual X server
+Xvfb :99 -screen 0 1280x800x24 &
+export DISPLAY=:99
+
+# Start Emacs
+emacs &
+#+end_src
+
+** Open CIDER Session
+
+In Emacs:
+1. =M-x cider-jack-in=
+2. Load buffer with demo code
+3. Eval and show results
+
+** Capture Screenshot
+
+#+begin_src bash
+# Capture Emacs window
+DISPLAY=:99 import -window root images/emacs-repl.png
+
+# Or capture specific window
+WID=$(DISPLAY=:99 xdotool search --name "emacs" | head -1)
+DISPLAY=:99 import -window $WID images/emacs-repl.png
+
+# Trim whitespace
+convert images/emacs-repl.png -trim images/emacs-repl.png
+#+end_src
+
+* Automated Demo Script
+
+#+begin_src bash :tangle scripts/record-demo.sh :shebang "#!/usr/bin/env bash"
+#!/usr/bin/env bash
+# record-demo.sh — Record atom-validator demo
+set -euo pipefail
+
+cd ~/ghq/github.com/aygp-dr/atom-validator
+mkdir -p images
+
+echo "=== Starting demo recording ==="
+
+# Create demo script
+cat > /tmp/demo-commands.clj << 'EOF'
+(require '[atom-validator.core :as v])
+
+;; Issue #1: Day-of-week mismatch
+(println "\n=== Day-of-Week Mismatch ===")
+(def result1 (v/validate-entry
+  {:title "Morning Brief: Thursday, June 19"
+   :updated "2026-06-19T00:00:00Z"
+   :id "urn:uuid:1"
+   :links [{:href "https://example.com/" :rel "alternate"}]}))
+(println "Valid?" (:valid? result1))
+(println "Error:" (:message (first (:errors result1))))
+
+;; Issue #2: Stale feed
+(println "\n=== Stale Feed ===")
+(def result2 (v/validate-feed
+  {:id "urn:uuid:feed" :title "News"
+   :updated "2026-06-14T00:00:00Z"
+   :entries [{:id "urn:uuid:1" :title "Breaking"
+              :updated "2026-06-19T00:00:00Z"
+              :links [{:href "https://example.com/" :rel "alternate"}]}]}))
+(println "Valid?" (:valid? result2))
+(println "Error:" (:message (first (:errors result2))))
+
+;; Issue #3: Invalid URL
+(println "\n=== Invalid URL Host ===")
+(def result3 (v/validate-entry
+  {:id "https://wal.shsite/event/"
+   :title "Event" :updated "2026-06-19T00:00:00Z"
+   :links [{:href "https://wal.shsite/event/" :rel "alternate"}]}))
+(println "Valid?" (:valid? result3))
+(println "Error:" (:message (first (:errors result3))))
+
+(println "\n=== Demo Complete ===")
+(System/exit 0)
+EOF
+
+# Run demo and capture output
+echo "Running demo..."
+clj -A:dev:test < /tmp/demo-commands.clj 2>&1 | tee images/demo-output.txt
+
+echo "Demo output saved to images/demo-output.txt"
+#+end_src
+
+* Demo Output Sample
+
+For inclusion in README when asciinema/screenshots are not available:
+
+#+begin_example
+user=> (require '[atom-validator.core :as v])
+nil
+
+user=> (v/validate-entry {:title "Morning Brief: Thursday, June 19"
+                          :updated "2026-06-19T00:00:00Z"
+                          :id "urn:uuid:1"
+                          :links [{:href "https://example.com/" :rel "alternate"}]})
+{:valid? false,
+ :errors [{:type :error,
+           :code :day-of-week-mismatch,
+           :message "Title says 'Thursday' but updated date is a Friday",
+           :path [:entries 0 :title],
+           :expected "Friday",
+           :found "Thursday"}],
+ :warnings []}
+
+user=> (v/valid? {:id "urn:uuid:feed"
+                  :title "Blog"
+                  :updated "2026-06-19T12:00:00Z"
+                  :entries []})
+true
+#+end_example
+
+* Directory Structure After Demo
+
+#+begin_example
+images/
+├── demo.cast           # Asciinema recording
+├── demo.gif            # Converted GIF
+├── demo.svg            # SVG version
+├── demo-output.txt     # Text transcript
+├── emacs-repl.png      # Emacs screenshot (optional)
+└── repl-session.html   # ANSI-colored HTML
+#+end_example
+
+* Quick Reference
+
+| Task | Command |
+|------+---------|
+| Start REPL | =gmake repl= or =clj -A:dev:test= |
+| Record terminal | =asciinema rec demo.cast= |
+| Upload recording | =asciinema upload demo.cast= |
+| Capture tmux | =tmux capture-pane -t SESSION -p= |
+| X11 screenshot | =DISPLAY=:99 import -window root out.png= |
+| Convert ANSI→HTML | =tmux capture-pane -pe \| aha > out.html= |
+
+* See Also
+
+- [[file:~/ghq/gist.github.com/aygp-dr/2ed6522ee72260e74edccabd58859e58/emacs-x11-screenshot-guide.org][Emacs X11 Screenshot Guide]]
+- [[file:CONTINUE.org][Session State]]
+- [[file:examples/validate-feeds.org][Interactive Examples]]

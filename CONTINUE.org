@@ -1,0 +1,183 @@
+#+TITLE: CONTINUE — atom-validator
+#+DATE: 2026-06-19
+
+* Session State
+
+** Completed This Session
+
+- [X] Implemented RFC 4287 structural validation (=rules.clj=)
+- [X] Implemented semantic checks - Issue #1 day-of-week (=semantic.clj=)
+- [X] Implemented feed freshness check - Issue #2 (=rules.clj=)
+- [X] Implemented URL validation - Issue #3 (=url.clj=)
+- [X] Created test.check generators (=generators.clj=)
+- [X] Property-based tests passing
+- [X] Unit tests passing
+- [X] Lint clean (clj-kondo)
+- [X] JAR builds and installs
+
+** Current Focus
+
+Ready for integration testing and documentation.
+
+* Quick Reference — gmake Commands
+
+** Run Unit Tests + Property-Based Tests
+
+#+begin_src bash
+gmake test
+#+end_src
+
+Output:
+#+begin_example
+Running tests in #{"test"}
+
+Testing atom-validator.core-test
+{:result true, :num-tests 10, ... :test-var "prop-stale-feeds-always-invalid"}
+{:result true, :num-tests 20, ... :test-var "prop-invalid-url-hosts-detected"}
+{:result true, :num-tests 20, ... :test-var "prop-correct-days-no-day-error"}
+{:result true, :num-tests 20, ... :test-var "prop-mismatched-days-always-invalid"}
+{:result true, :num-tests 10, ... :test-var "prop-valid-feeds-are-valid"}
+{:result true, :num-tests 20, ... :test-var "prop-valid-entries-have-no-url-errors"}
+
+Ran 14 tests containing 17 assertions.
+0 failures, 0 errors.
+#+end_example
+
+** Run Static Analysis (clj-kondo)
+
+#+begin_src bash
+gmake lint
+#+end_src
+
+Output:
+#+begin_example
+linting took 696ms, errors: 0, warnings: 0
+#+end_example
+
+** Run Both Lint + Tests
+
+#+begin_src bash
+gmake check
+#+end_src
+
+** Start REPL with CIDER
+
+#+begin_src bash
+gmake repl
+#+end_src
+
+Starts nREPL on =127.0.0.1:7888= with CIDER middleware.
+
+Connect from Emacs: =M-x cider-connect RET localhost RET 7888=
+
+** Start FlowStorm Time-Travel Debugger
+
+#+begin_src bash
+gmake storm
+#+end_src
+
+Then in REPL:
+#+begin_src clojure
+(require '[flow-storm.api :as fs])
+(fs/local-connect)
+#+end_src
+
+** Build JAR
+
+#+begin_src bash
+gmake jar
+# Output: Built: target/atom-validator-0.1.X.jar
+#+end_src
+
+** Install to Local Maven (~/.m2)
+
+#+begin_src bash
+gmake install
+# Output: Installed: io.github.aygp-dr/atom-validator 0.1.X
+#+end_src
+
+** Deploy to Clojars
+
+#+begin_src bash
+gmake deploy
+# Requires: pass clojars/apace/deploy-token-hydra
+#+end_src
+
+** Check for Outdated Dependencies
+
+#+begin_src bash
+gmake outdated
+#+end_src
+
+* REPL Session Setup (tmux)
+
+** Start REPL in tmux
+
+#+begin_src bash
+# Create tmux session with REPL
+tmux new-session -s atom-validator -d 'cd ~/ghq/github.com/aygp-dr/atom-validator && gmake repl'
+
+# Attach to watch output
+tmux attach -t atom-validator
+
+# Or view from another terminal
+tmux capture-pane -t atom-validator -p | tail -20
+#+end_src
+
+** Connect from Emacs
+
+Once REPL is running:
+
+#+begin_src elisp
+(setq cider-known-endpoints '(("atom-validator" "127.0.0.1" "7888")))
+#+end_src
+
+Then =M-x cider-connect= → select =atom-validator=.
+
+* Test Coverage by Issue
+
+| Issue | Test Type | Test Name | Pass |
+|-------+-----------+-----------+------|
+| #1 | Unit | =day-of-week-mismatch= | ✓ |
+| #1 | Unit | =day-of-week-correct= | ✓ |
+| #1 | PBT | =prop-mismatched-days-always-invalid= | ✓ |
+| #1 | PBT | =prop-correct-days-no-day-error= | ✓ |
+| #2 | Unit | =feed-updated-not-stale= | ✓ |
+| #2 | Unit | =feed-updated-fresh= | ✓ |
+| #2 | PBT | =prop-stale-feeds-always-invalid= | ✓ |
+| #3 | Unit | =entry-urls-valid= | ✓ |
+| #3 | Unit | =entry-urls-with-valid-host= | ✓ |
+| #3 | PBT | =prop-invalid-url-hosts-detected= | ✓ |
+| #3 | PBT | =prop-valid-entries-have-no-url-errors= | ✓ |
+| - | PBT | =prop-valid-feeds-are-valid= | ✓ |
+
+* Next Steps
+
+1. [ ] Take screenshot of REPL session with example validation
+2. [ ] Test with real-world Atom feeds (GitHub, blogs)
+3. [ ] Consider adding more suspicious TLD patterns
+4. [ ] Optional: Add XML schema validation
+5. [ ] Optional: CLI wrapper for command-line validation
+
+* Files Modified This Session
+
+| File | Action |
+|------+--------|
+| =deps.edn= | Updated - added FlowStorm, lint, REPL aliases |
+| =Makefile= | Updated - added repl, lint, storm, check targets |
+| =.clj-kondo/config.edn= | Created |
+| =src/atom_validator/core.clj= | Updated - wired up modules |
+| =src/atom_validator/parser.clj= | Created |
+| =src/atom_validator/rules.clj= | Created |
+| =src/atom_validator/semantic.clj= | Created |
+| =src/atom_validator/url.clj= | Created |
+| =test/atom_validator/core_test.clj= | Updated - PBT tests |
+| =test/atom_validator/generators.clj= | Created |
+| =README.org= | Created |
+| =CONTINUE.org= | Created (this file) |
+
+* Pointers
+
+- Session transcript: [[file:~/.claude/projects/.../transcript.jsonl]]
+- Plan: [[file:~/.claude/projects/.../plan.md]]
+- Screenshot guide: [[file:~/ghq/gist.github.com/aygp-dr/2ed6522ee72260e74edccabd58859e58/emacs-x11-screenshot-guide.org]]

@@ -1,0 +1,287 @@
+#+TITLE: atom-validator
+#+AUTHOR: aygp-dr
+#+DATE: 2026-06-19
+
+RFC 4287 Atom feed validator with property-based testing for Clojure.
+
+* Features
+
+- Structural validation per RFC 4287 (required elements, dates)
+- Semantic checks (day-of-week in titles, feed freshness)
+- URL/IRI validation (detects typos like =wal.shsite= → =wal.sh/site=)
+- Property-based testing with test.check generators
+
+* Installation
+
+** deps.edn
+
+#+begin_src clojure
+{:deps {io.github.aygp-dr/atom-validator {:mvn/version "0.1.1"}}}
+#+end_src
+
+** Leiningen
+
+#+begin_src clojure
+[io.github.aygp-dr/atom-validator "0.1.1"]
+#+end_src
+
+* Demo
+
+#+begin_example
+╔════════════════════════════════════════════╗
+║       atom-validator Demo                  ║
+║       RFC 4287 Atom Feed Validation        ║
+╚════════════════════════════════════════════╝
+
+━━━ Issue #1: Day-of-Week Mismatch ━━━
+
+Entry title says 'Thursday, June 19' but 2026-06-19 is Friday!
+
+user=> (v/validate-entry entry1)
+=> {:valid? false
+    :errors [:day-of-week-mismatch]
+    :message "Title says 'Thursday' but updated date is a Friday"}
+
+━━━ Issue #2: Stale Feed Timestamp ━━━
+
+Feed updated=2026-06-14 but entry updated=2026-06-19 (newer!)
+
+user=> (v/validate-feed feed2)
+=> {:valid? false
+    :errors [:stale-feed-updated]
+    :message "Feed updated (2026-06-14T00:00:00Z) is older than newest entry"}
+
+━━━ Issue #3: Invalid URL Host ━━━
+
+URL 'wal.shsite' looks like typo for 'wal.sh/site'
+
+user=> (v/validate-entry entry3)
+=> {:valid? false
+    :errors [:invalid-url-host]
+    :message "URL has invalid host: https://wal.shsite/gophercon/"}
+
+━━━ Valid Feed ━━━
+
+user=> (v/valid? valid-feed)
+=> true
+#+end_example
+
+* Quick Start
+
+** Require the namespace
+
+#+begin_src clojure
+(require '[atom-validator.core :as v])
+#+end_src
+
+** Validate a feed map
+
+#+begin_src clojure
+(def feed {:id "urn:uuid:feed-1"
+           :title "My Blog"
+           :updated "2026-06-19T12:00:00Z"
+           :entries [{:id "urn:uuid:entry-1"
+                      :title "Morning Brief: Thursday, June 19"
+                      :updated "2026-06-19T00:00:00Z"
+                      :links [{:href "https://example.com/1/" :rel "alternate"}]}]})
+
+(v/validate-feed feed)
+;; => {:valid? false
+;;     :errors [{:type :error
+;;               :code :day-of-week-mismatch
+;;               :message "Title says 'Thursday' but updated date is a Friday"
+;;               :path [:entries 0 :title]}]
+;;     :warnings []}
+#+end_src
+
+** Parse and validate XML
+
+#+begin_src clojure
+(def feed-xml "<?xml version='1.0'?>
+<feed xmlns='http://www.w3.org/2005/Atom'>
+  <id>urn:uuid:feed-1</id>
+  <title>My Blog</title>
+  <updated>2026-06-19T12:00:00Z</updated>
+</feed>")
+
+(v/validate-feed feed-xml)
+;; => {:valid? true :errors [] :warnings [...]}
+#+end_src
+
+* REPL Examples
+
+** Start the REPL
+
+#+begin_src bash
+# With CIDER middleware for Emacs
+make repl
+
+# Or with FlowStorm time-travel debugger
+make storm
+#+end_src
+
+** Fetch and validate a real Atom feed
+
+#+begin_src clojure
+(require '[atom-validator.core :as v]
+         '[clojure.java.io :as io])
+
+;; Fetch a real Atom feed (GitHub releases)
+(def github-feed
+  (slurp "https://github.com/clojure/clojure/releases.atom"))
+
+(def result (v/validate-feed github-feed))
+
+(:valid? result)
+;; => true (or false with :errors)
+
+;; Check specific errors
+(map :code (:errors result))
+;; => (:stale-feed-updated :invalid-url-host ...)
+#+end_src
+
+** Generate random valid feeds (for testing)
+
+#+begin_src clojure
+(require '[clojure.test.check.generators :as gen]
+         '[atom-validator.generators :as g])
+
+;; Generate a valid Atom feed
+(gen/generate g/gen-valid-atom-feed)
+;; => {:id "urn:uuid:..."
+;;     :title "Article Update"
+;;     :updated "2025-03-15T14:22:33Z"
+;;     :entries [...]}
+
+;; Generate an entry with day-of-week mismatch (for testing Issue #1)
+(gen/generate (g/gen-entry-with-mismatched-day))
+;; => {:title "Morning Brief: Thursday, June 19"
+;;     :updated "2026-06-19T00:00:00Z"  ; Friday!
+;;     ...}
+
+;; Generate a feed with stale updated timestamp (for testing Issue #2)
+(gen/generate (g/gen-feed-with-stale-updated))
+;; => {:updated "2026-06-14T..."
+;;     :entries [{:updated "2026-06-19T..." ...}]}  ; newer than feed!
+#+end_src
+
+** Interactive validation workflow
+
+#+begin_src clojure
+;; Step 1: Parse the feed
+(def feed (v/parse-feed github-feed))
+(:title feed)
+;; => "Release notes from clojure"
+
+;; Step 2: Check feed metadata
+(count (:entries feed))
+;; => 10
+
+;; Step 3: Validate individual entries
+(v/validate-entry (first (:entries feed)))
+;; => {:valid? true ...}
+
+;; Step 4: Find problematic entries
+(->> (:entries feed)
+     (map-indexed (fn [i e] [i (:title e) (:valid? (v/validate-entry e))]))
+     (filter (fn [[_ _ valid?]] (not valid?))))
+;; => ([3 "Bad Entry Title" false] ...)
+#+end_src
+
+* Validation Rules
+
+| Issue | Check | Error Code |
+|-------+-------+------------|
+| #1 | Title day-of-week matches =<updated>= date | =:day-of-week-mismatch= |
+| #2 | Feed =<updated>= >= max(entry =<updated>=) | =:stale-feed-updated= |
+| #3 | Entry URLs are valid absolute URLs | =:invalid-url-host= |
+
+* Development
+
+** Commands
+
+| Command | Description |
+|---------+-------------|
+| =make test= | Run unit tests + property-based tests |
+| =make lint= | Run clj-kondo static analysis |
+| =make repl= | Start CIDER-enabled nREPL on port 7888 |
+| =make storm= | Start FlowStorm time-travel debugger |
+| =make check= | Run lint + test |
+| =make jar= | Build JAR file |
+| =make install= | Install to local Maven repo |
+| =make deploy= | Deploy to Clojars (requires credentials) |
+
+** Connect from Emacs
+
+#+begin_src bash
+# Terminal 1: Start REPL in tmux
+tmux new-session -s atom-validator -d 'make repl'
+
+# Emacs: Connect
+M-x cider-connect RET localhost RET 7888
+#+end_src
+
+** Project Structure
+
+#+begin_example
+src/atom_validator/
+├── core.clj      # Main API: validate-feed, validate-entry, parse-feed
+├── parser.clj    # XML parsing with clojure.data.xml
+├── rules.clj     # RFC 4287 structural validation
+├── semantic.clj  # Semantic checks (day-of-week)
+└── url.clj       # URL/IRI validation
+
+test/atom_validator/
+├── core_test.clj    # Unit + property-based tests
+└── generators.clj   # test.check generators for Atom feeds
+#+end_example
+
+* API Reference
+
+** =validate-feed=
+
+#+begin_src clojure
+(v/validate-feed feed)
+(v/validate-feed feed {:semantic? true :strict? false})
+#+end_src
+
+Returns ={:valid? bool :errors [...] :warnings [...] :feed parsed-map}=
+
+Options:
+- =:semantic?= - Enable semantic checks like day-of-week (default =true=)
+- =:strict?= - Treat warnings as errors (default =false=)
+
+** =validate-entry=
+
+#+begin_src clojure
+(v/validate-entry entry)
+(v/validate-entry entry {:semantic? true})
+#+end_src
+
+Returns ={:valid? bool :errors [...] :warnings [...]}=
+
+** =parse-feed=
+
+#+begin_src clojure
+(v/parse-feed xml-string-or-input-stream)
+#+end_src
+
+Returns parsed feed as Clojure map with =:id=, =:title=, =:updated=, =:entries=, etc.
+
+** =valid?=
+
+#+begin_src clojure
+(v/valid? feed)
+(v/valid? feed {:semantic? false})
+#+end_src
+
+Quick check - returns =true= or =false=.
+
+* License
+
+MIT
+
+* Related
+
+- [[https://datatracker.ietf.org/doc/html/rfc4287][RFC 4287 - The Atom Syndication Format]]
+- [[https://validator.w3.org/feed/][W3C Feed Validation Service]]

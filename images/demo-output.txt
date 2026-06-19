@@ -1,0 +1,41 @@
+╔════════════════════════════════════════════╗
+║       atom-validator Demo                  ║
+║       RFC 4287 Atom Feed Validation        ║
+╚════════════════════════════════════════════╝
+
+━━━ Issue #1: Day-of-Week Mismatch ━━━
+
+Entry title says 'Thursday, June 19' but 2026-06-19 is Friday!
+
+user=> (v/validate-entry entry1)
+=> {:valid? false
+    :errors [:day-of-week-mismatch]
+    :message "Title says 'Thursday' but updated date is a Friday"}
+
+━━━ Issue #2: Stale Feed Timestamp ━━━
+
+Feed updated=2026-06-14 but entry updated=2026-06-19 (newer!)
+
+user=> (v/validate-feed feed2)
+=> {:valid? false
+    :errors [:stale-feed-updated]
+    :message "Feed updated (2026-06-14T00:00:00Z) is older than newest entry"}
+
+━━━ Issue #3: Invalid URL Host ━━━
+
+URL 'wal.shsite' looks like typo for 'wal.sh/site'
+
+user=> (v/validate-entry entry3)
+=> {:valid? false
+    :errors [:invalid-url-host]
+    :message "URL has invalid host: https://wal.shsite/gophercon/"}
+
+━━━ Valid Feed ━━━
+
+user=> (v/valid? valid-feed)
+=> true
+
+╔════════════════════════════════════════════╗
+║  All validations complete!                 ║
+║  See README.org for integration guide      ║
+╚════════════════════════════════════════════╝

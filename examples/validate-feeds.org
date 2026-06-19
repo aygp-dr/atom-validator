@@ -1,0 +1,200 @@
+#+TITLE: Atom Feed Validation Examples
+#+AUTHOR: aygp-dr
+#+DATE: 2026-06-19
+#+PROPERTY: header-args:clojure :session *atom-validator* :results output
+
+* Setup
+
+Start a CIDER session first:
+
+#+begin_src bash :eval no
+gmake repl
+# Then connect: M-x cider-connect RET localhost RET 7888
+#+end_src
+
+* Require Namespaces
+
+#+begin_src clojure
+(require '[atom-validator.core :as v]
+         '[atom-validator.parser :as parser]
+         '[atom-validator.generators :as g]
+         '[clojure.test.check.generators :as gen]
+         '[clojure.java.io :as io])
+
+(println "atom-validator loaded ✓")
+#+end_src
+
+* Validate a Simple Feed
+
+#+begin_src clojure
+(def simple-feed
+  {:id "urn:uuid:feed-1"
+   :title "My Tech Blog"
+   :updated "2026-06-19T12:00:00Z"
+   :authors [{:name "Jane Developer"}]
+   :entries [{:id "urn:uuid:entry-1"
+              :title "Getting Started with Clojure"
+              :updated "2026-06-19T10:00:00Z"
+              :links [{:href "https://example.com/clojure-intro/" :rel "alternate"}]}]})
+
+(let [result (v/validate-feed simple-feed)]
+  (println "Valid?" (:valid? result))
+  (println "Errors:" (count (:errors result)))
+  (println "Warnings:" (count (:warnings result))))
+#+end_src
+
+* Day-of-Week Mismatch (Issue #1)
+
+This entry claims to be from "Thursday, June 19" but 2026-06-19 is a Friday.
+
+#+begin_src clojure
+(def mismatched-entry
+  {:id "urn:uuid:brief-1"
+   :title "Morning Brief: Thursday, June 19"  ; Wrong!
+   :updated "2026-06-19T08:00:00Z"             ; This is Friday
+   :links [{:href "https://news.example.com/brief-1/" :rel "alternate"}]})
+
+(let [result (v/validate-entry mismatched-entry)]
+  (println "Valid?" (:valid? result))
+  (doseq [err (:errors result)]
+    (println "  -" (:code err) "-" (:message err))))
+#+end_src
+
+Expected output:
+#+begin_example
+Valid? false
+  - :day-of-week-mismatch - Title says 'Thursday' but updated date is a Friday
+#+end_example
+
+* Stale Feed Updated (Issue #2)
+
+The feed's =<updated>= timestamp must be >= the newest entry's timestamp.
+
+#+begin_src clojure
+(def stale-feed
+  {:id "urn:uuid:feed-2"
+   :title "Stale News"
+   :updated "2026-06-14T00:00:00Z"  ; Old!
+   :entries [{:id "urn:uuid:entry-new"
+              :title "Breaking News"
+              :updated "2026-06-19T15:00:00Z"  ; Newer than feed!
+              :links [{:href "https://news.example.com/breaking/" :rel "alternate"}]}]})
+
+(let [result (v/validate-feed stale-feed)]
+  (println "Valid?" (:valid? result))
+  (doseq [err (:errors result)]
+    (println "  -" (:code err) "-" (:message err))))
+#+end_src
+
+Expected output:
+#+begin_example
+Valid? false
+  - :stale-feed-updated - Feed updated (2026-06-14T00:00:00Z) is older than newest entry
+#+end_example
+
+* Invalid URL Host (Issue #3)
+
+Detects typos like =wal.shsite= which should be =wal.sh/site=.
+
+#+begin_src clojure
+(def bad-url-entry
+  {:id "https://wal.shsite/events/gophercon-2026/"  ; Typo!
+   :title "GopherCon 2026"
+   :updated "2026-06-19T00:00:00Z"
+   :links [{:href "https://wal.shsite/events/gophercon-2026/" :rel "alternate"}]})
+
+(let [result (v/validate-entry bad-url-entry)]
+  (println "Valid?" (:valid? result))
+  (doseq [err (:errors result)]
+    (println "  -" (:code err) "-" (:message err))))
+#+end_src
+
+Expected output:
+#+begin_example
+Valid? false
+  - :invalid-url-host - URL has invalid host: https://wal.shsite/events/gophercon-2026/
+#+end_example
+
+* Fetch and Validate a Real Feed
+
+#+begin_src clojure
+(defn fetch-and-validate [url]
+  (try
+    (let [xml (slurp url)
+          result (v/validate-feed xml)]
+      (println "Feed:" url)
+      (println "Valid?" (:valid? result))
+      (println "Entries:" (count (get-in result [:feed :entries])))
+      (when (seq (:errors result))
+        (println "Errors:")
+        (doseq [err (take 5 (:errors result))]
+          (println "  -" (:code err))))
+      result)
+    (catch Exception e
+      (println "Error fetching:" (.getMessage e))
+      nil)))
+
+;; Validate GitHub's Clojure releases feed
+(fetch-and-validate "https://github.com/clojure/clojure/releases.atom")
+#+end_src
+
+* Generate Test Data
+
+Use test.check generators to create valid and invalid feeds for testing.
+
+#+begin_src clojure
+;; Generate a valid feed
+(println "Generated valid feed:")
+(let [feed (gen/generate g/gen-valid-atom-feed)]
+  (println "  Title:" (:title feed))
+  (println "  Entries:" (count (:entries feed)))
+  (println "  Valid?" (:valid? (v/validate-feed feed {:semantic? false}))))
+
+;; Generate an entry with mismatched day-of-week
+(println "\nGenerated mismatched entry:")
+(let [entry (gen/generate (g/gen-entry-with-mismatched-day))]
+  (println "  Title:" (:title entry))
+  (println "  Updated:" (:updated entry))
+  (println "  Valid?" (:valid? (v/validate-entry entry))))
+
+;; Generate a stale feed
+(println "\nGenerated stale feed:")
+(let [feed (gen/generate (g/gen-feed-with-stale-updated))]
+  (println "  Feed updated:" (:updated feed))
+  (println "  Entry updated:" (:updated (first (:entries feed))))
+  (println "  Valid?" (:valid? (v/validate-feed feed))))
+#+end_src
+
+* Batch Validation
+
+Validate multiple feeds and collect statistics.
+
+#+begin_src clojure
+(def feed-urls
+  ["https://github.com/clojure/clojure/releases.atom"
+   "https://github.com/babashka/babashka/releases.atom"
+   "https://github.com/cognitect-labs/test-runner/releases.atom"])
+
+(defn validate-batch [urls]
+  (let [results (for [url urls]
+                  (try
+                    {:url url
+                     :result (v/validate-feed (slurp url))}
+                    (catch Exception e
+                      {:url url
+                       :error (.getMessage e)})))]
+    (println "Batch validation results:")
+    (println "  Total:" (count results))
+    (println "  Valid:" (count (filter #(get-in % [:result :valid?]) results)))
+    (println "  Invalid:" (count (filter #(and (:result %) (not (get-in % [:result :valid?]))) results)))
+    (println "  Errors:" (count (filter :error results)))
+    results))
+
+(validate-batch feed-urls)
+#+end_src
+
+* Local Variables
+
+# Local Variables:
+# org-confirm-babel-evaluate: nil
+# End:

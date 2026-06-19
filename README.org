@@ -21,13 +21,13 @@
 ** deps.edn
 
 #+begin_src clojure
-{:deps {org.clojars.apace/atom-validator {:mvn/version "0.1.27"}}}
+{:deps {org.clojars.apace/atom-validator {:mvn/version "RELEASE"}}}
 #+end_src
 
 ** Leiningen
 
 #+begin_src clojure
-[org.clojars.apace/atom-validator "0.1.27"]
+[org.clojars.apace/atom-validator "RELEASE"]
 #+end_src
 
 * Quick Start

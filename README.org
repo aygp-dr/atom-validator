@@ -22,13 +22,13 @@ RFC 4287 Atom feed validator with property-based testing for Clojure.
 ** deps.edn
 
 #+begin_src clojure
-{:deps {org.clojars.apace/atom-validator {:mvn/version "0.1.21"}}}
+{:deps {org.clojars.apace/atom-validator {:mvn/version "0.1.27"}}}
 #+end_src
 
 ** Leiningen
 
 #+begin_src clojure
-[org.clojars.apace/atom-validator "0.1.21"]
+[org.clojars.apace/atom-validator "0.1.27"]
 #+end_src
 
 * Quick Start

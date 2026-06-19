@@ -2,6 +2,10 @@
 #+AUTHOR: aygp-dr
 #+DATE: 2026-06-19
 
+[[https://github.com/aygp-dr/atom-validator/actions/workflows/ci.yml][https://img.shields.io/github/actions/workflow/status/aygp-dr/atom-validator/ci.yml?branch=main&label=CI]]
+[[https://clojars.org/org.clojars.apace/atom-validator][https://img.shields.io/clojars/v/org.clojars.apace/atom-validator.svg]]
+[[https://opensource.org/licenses/MIT][https://img.shields.io/badge/License-MIT-blue.svg]]
+
 RFC 4287 Atom feed validator with property-based testing for Clojure.
 
 * Features
@@ -16,13 +20,13 @@ RFC 4287 Atom feed validator with property-based testing for Clojure.
 ** deps.edn
 
 #+begin_src clojure
-{:deps {io.github.aygp-dr/atom-validator {:mvn/version "0.1.1"}}}
+{:deps {org.clojars.apace/atom-validator {:mvn/version "0.1.16"}}}
 #+end_src
 
 ** Leiningen
 
 #+begin_src clojure
-[io.github.aygp-dr/atom-validator "0.1.1"]
+[org.clojars.apace/atom-validator "0.1.16"]
 #+end_src
 
 * Demo

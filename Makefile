@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage
+.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security
 
 CLOJARS_USER := apace
 
@@ -11,6 +11,8 @@ help:
 	@echo "  make lint       - Check for issues (clj-kondo)"
 	@echo "  make storm      - Start FlowStorm time-travel debugger"
 	@echo "  make check      - Run lint + test"
+	@echo "  make nvd        - Scan dependencies for CVEs"
+	@echo "  make security   - Run lint + nvd scan"
 	@echo "  make outdated   - Check for outdated dependencies"
 	@echo ""
 	@echo "Build:"
@@ -45,6 +47,15 @@ storm:
 	clj -A:storm:test
 
 check: lint test
+
+# CVE dependency scanning (nvd-clojure)
+# Install once: clojure -Ttools install nvd-clojure/nvd-clojure '{:mvn/version "RELEASE"}' :as nvd
+nvd:
+	@echo "Scanning dependencies for known CVEs..."
+	clojure -Tnvd nvd.task/check :classpath '"'"$$(clojure -Spath)"'"'
+
+# Full security check: static analysis + CVE scan
+security: lint nvd
 
 coverage:
 	clojure -M:coverage

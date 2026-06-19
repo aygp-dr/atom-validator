@@ -1,4 +1,8 @@
-name: CodeQL
+# Security scanning for Clojure
+# Note: CodeQL doesn't support Clojure (.clj files)
+# Using clj-kondo for static analysis and nvd-clojure for CVE scanning
+
+name: Security
 
 on:
   push:
@@ -9,25 +13,33 @@ on:
     - cron: '0 6 * * 1'  # Weekly on Monday
 
 jobs:
-  analyze:
+  lint:
+    name: Static Analysis (clj-kondo)
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: java  # Clojure runs on JVM
 
       - name: Setup Clojure
         uses: DeLaGuardo/setup-clojure@12.5
         with:
           cli: latest
 
-      - name: Build
-        run: clojure -T:build jar
+      - name: Run clj-kondo
+        run: clojure -M:lint
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+  nvd-check:
+    name: CVE Scan (nvd-clojure)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@12.5
+        with:
+          cli: latest
+
+      - name: Check dependencies for CVEs
+        run: |
+          clojure -Ttools install nvd-clojure/nvd-clojure '{:mvn/version "RELEASE"}' :as nvd
+          clojure -Tnvd nvd.task/check :classpath '"'"$(clojure -Spath)"'"' || true
+        continue-on-error: true  # Advisory only for now

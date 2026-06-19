@@ -28,3 +28,9 @@ Thumbs.db
 .env.local
 .clj-kondo/.cache/
 target/coverage/
+
+# Security scanning
+.nvd/
+
+# Core dumps
+*.core

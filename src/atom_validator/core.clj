@@ -15,6 +15,7 @@
             [atom-validator.url :as url]
             [atom-validator.rss :as rss]
             [atom-validator.jsonfeed :as jsonfeed]
+            [atom-validator.http :as http]
             [clojure.data.xml :as xml]
             [clojure.java.io :as io]
             [clojure.string :as str])
@@ -111,20 +112,30 @@
    Returns {:valid? bool :errors [...] :warnings [...] :feed map}.
 
    Arguments:
-   - feed: Either a parsed feed map, XML string/input-stream, or JSON string
+   - feed: Either a parsed feed map, an http(s) URL string, an XML/JSON string,
+           or an input-stream.
+
+   If feed is a string starting with \"http://\" or \"https://\", it is fetched
+   over HTTP first (see atom-validator.http/fetch-feed). On fetch failure, the
+   returned map will have :valid? false and :http metadata.
 
    Options:
    - :semantic? - Enable semantic checks like day-of-week (default true, Atom only)
    - :strict?   - Treat warnings as errors (default false)
    - :format    - Force format (:atom, :rss, or :json-feed), auto-detects if not specified
+   - :fetch?    - When false, do NOT auto-fetch URLs (default true). Useful if
+                  the caller wants to treat a URL-like string as raw content.
+   - HTTP options (when fetching): :timeout-seconds, :max-redirects,
+     :validate-content-type?, :head-check? - see atom-validator.http/fetch-feed
 
    Example:
-     (validate-feed \"<feed>...</feed>\")     ; Atom feed
-     (validate-feed \"<rss>...</rss>\")       ; RSS feed
-     (validate-feed \"{\\\"version\\\":...}\")  ; JSON Feed
+     (validate-feed \"<feed>...</feed>\")             ; Atom feed
+     (validate-feed \"<rss>...</rss>\")               ; RSS feed
+     (validate-feed \"{\\\"version\\\":...}\")          ; JSON Feed
+     (validate-feed \"https://example.com/feed.xml\") ; Fetched via HTTP
      (validate-feed parsed-map {:semantic? false})"
   ([feed] (validate-feed feed {}))
-  ([feed {:keys [format] :as opts}]
+  ([feed {:keys [format fetch?] :or {fetch? true} :as opts}]
    (cond
      ;; Already parsed with format marker
      (and (map? feed) (:format feed))
@@ -136,6 +147,21 @@
      ;; Pre-parsed map without format marker - assume Atom for backwards compatibility
      (map? feed)
      (validate-atom-feed feed opts)
+
+     ;; URL string: fetch then validate
+     (and fetch? (http/url? feed))
+     (let [fetch-result (http/fetch-feed feed opts)
+           http-meta {:url (:url fetch-result)
+                      :status (:status fetch-result)
+                      :content-type (:content-type fetch-result)
+                      :redirects (:redirects fetch-result)}]
+       (if (:ok? fetch-result)
+         (assoc (validate-feed (:body fetch-result) (dissoc opts :fetch?))
+                :http http-meta)
+         {:valid? false
+          :errors (:errors fetch-result)
+          :warnings []
+          :http http-meta}))
 
      ;; Force format specified
      (= format :rss)

@@ -86,15 +86,25 @@
    (when-let [normalized (normalize-content-type content-type)]
      (contains? feed-content-types normalized))))
 
+(def ^:private shared-client
+  "Single shared HttpClient. java.net.http.HttpClient spawns non-daemon
+  selector threads that keep the JVM alive after tests finish. Creating one
+  per request hangs CI for ~30 minutes after tests pass. Sharing a single
+  client across all calls keeps the thread count bounded.
+
+  We disable automatic redirect handling so we can count redirects manually
+  and enforce max-redirects."
+  (delay
+    (-> (HttpClient/newBuilder)
+        (.followRedirects HttpClient$Redirect/NEVER)
+        (.connectTimeout (Duration/ofSeconds default-timeout-seconds))
+        (.version HttpClient$Version/HTTP_2)
+        (.build))))
+
 (defn- build-client
-  "Build an HttpClient instance. We disable automatic redirect handling so we
-  can count redirects manually and enforce max-redirects."
+  "Return the shared HttpClient instance."
   []
-  (-> (HttpClient/newBuilder)
-      (.followRedirects HttpClient$Redirect/NEVER)
-      (.connectTimeout (Duration/ofSeconds default-timeout-seconds))
-      (.version HttpClient$Version/HTTP_2)
-      (.build)))
+  @shared-client)
 
 (defn- build-request
   "Build an HttpRequest for the given URI and method (:get or :head)."

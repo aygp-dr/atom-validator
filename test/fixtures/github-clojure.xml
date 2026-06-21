@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xml:lang="en-US">
+  <id>tag:github.com,2008:https://github.com/clojure/clojure/releases</id>
+  <link type="text/html" rel="alternate" href="https://github.com/clojure/clojure/releases"/>
+  <link type="application/atom+xml" rel="self" href="https://github.com/clojure/clojure/releases.atom"/>
+  <title>Release notes from clojure</title>
+  <updated>2026-05-12T18:05:58Z</updated>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.5</id>
+    <updated>2026-05-12T18:05:58Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.5"/>
+    <title>clojure-1.12.5</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.5&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.5-rc1</id>
+    <updated>2026-04-20T14:59:11Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.5-rc1"/>
+    <title>clojure-1.12.5-rc1</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.5-rc1&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.5-alpha1</id>
+    <updated>2026-04-07T20:18:49Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.5-alpha1"/>
+    <title>clojure-1.12.5-alpha1</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.5-alpha1&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.4</id>
+    <updated>2025-12-10T18:25:37Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.4"/>
+    <title>clojure-1.12.4</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.4&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.3</id>
+    <updated>2025-09-25T17:15:25Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.3"/>
+    <title>clojure-1.12.3</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.3&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.2</id>
+    <updated>2025-08-25T21:36:57Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.2"/>
+    <title>clojure-1.12.2</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.2&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.1</id>
+    <updated>2025-06-02T14:10:11Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.1"/>
+    <title>clojure-1.12.1</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.1&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.0</id>
+    <updated>2024-09-05T19:03:31Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.0"/>
+    <title>clojure-1.12.0</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.0&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.0-rc2</id>
+    <updated>2024-08-28T18:18:06Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.0-rc2"/>
+    <title>clojure-1.12.0-rc2</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.0-rc2&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/747512/clojure-1.12.0-rc1</id>
+    <updated>2024-08-03T17:09:48Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/clojure/clojure/releases/tag/clojure-1.12.0-rc1"/>
+    <title>clojure-1.12.0-rc1</title>
+    <content type="html">&lt;p&gt;[maven-release-plugin] copy for tag clojure-1.12.0-rc1&lt;/p&gt;</content>
+    <author>
+      <name>clojure-build</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/482249?s=60&amp;v=4"/>
+  </entry>
+</feed>

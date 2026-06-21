@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Invalid Feed - Missing Required Elements</title>
+  <!-- Missing: id, updated, author -->
+
+  <entry>
+    <title>Morning Brief: Thursday, June 19</title>
+    <!-- Day mismatch: June 19, 2026 is a FRIDAY not Thursday -->
+    <updated>2026-06-19T00:00:00Z</updated>
+    <id>urn:uuid:test-1</id>
+    <link href="https://wal.shsite/article" rel="alternate"/>
+    <!-- Invalid URL: wal.shsite looks like wal.sh + site typo -->
+  </entry>
+</feed>

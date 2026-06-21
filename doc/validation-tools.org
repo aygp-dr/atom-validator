@@ -1,0 +1,122 @@
+#+TITLE: Validation Tools Feature Comparison
+#+AUTHOR: aygp-dr
+#+DATE: 2026-06-19
+
+* Feature Priority Table
+
+| Priority | Feature | Tool | Status | Notes |
+|----------|---------|------|--------|-------|
+| P1 | XML well-formedness | xmllint | ✓ Installed | =xmllint --noout feed.xml= |
+| P1 | RelaxNG validation | xmllint + schema | ✓ Ready | =xmllint --relaxng atom.rng feed.xml= |
+| P1 | Atom RelaxNG schema | RFC 4287 Appendix B | ✓ Downloaded | =schemas/atom.rnc= |
+| P1 | RNC → RNG conversion | trang | ✓ Installed | =trang atom.rnc atom.rng= |
+| P2 | DTD validation | xmllint | ✓ Available | RSS 0.91 only |
+| P2 | Schematron rules | schematron-basex | Not installed | Cross-element validation |
+| P2 | W3C Feed Validator | feedvalidator | Not installed | Python package |
+| P3 | XSD validation | xmllint | ✓ Available | Community schemas only |
+| P3 | NVDL dispatch | jnvdl | Not installed | Multi-namespace |
+| P3 | JSON Feed validation | ajv | Not installed | JSON Schema |
+
+* P1 Tools (Essential)
+
+** xmllint (libxml2)
+
+Already installed. Core XML validation.
+
+#+begin_src bash :eval no
+# Well-formedness check
+xmllint --noout feed.xml
+
+# RelaxNG validation
+xmllint --relaxng schemas/atom.rng feed.xml --noout
+
+# DTD validation (RSS 0.91)
+xmllint --valid --dtdvalid schemas/rss-0.91.dtd feed.xml --noout
+
+# Pretty print
+xmllint --format feed.xml
+#+end_src
+
+** trang (RNC → RNG converter)
+
+Java tool for schema conversion.
+
+#+begin_src bash :eval no
+# Convert RelaxNG Compact to XML syntax
+java -jar tools/trang.jar schemas/atom.rnc schemas/atom.rng
+
+# Convert RNG to XSD (lossy)
+java -jar tools/trang.jar schemas/atom.rng schemas/atom.xsd
+#+end_src
+
+** jing (RelaxNG validator)
+
+More accurate than xmllint for RelaxNG.
+
+#+begin_src bash :eval no
+# Validate against RNG
+java -jar tools/jing.jar schemas/atom.rng feed.xml
+
+# Validate against RNC directly
+java -jar tools/jing.jar schemas/atom.rnc feed.xml
+#+end_src
+
+* P2 Tools (Recommended)
+
+** feedvalidator (Python)
+
+W3C Feed Validation Service engine.
+
+#+begin_src bash :eval no
+pip install feedvalidator
+feedvalidator https://example.com/feed.atom
+feedvalidator feed.xml
+#+end_src
+
+** Schematron
+
+Rule-based validation for cross-element constraints.
+
+#+begin_src bash :eval no
+# Using Saxon
+java -jar saxon-he.jar -xsl:schematron/iso_svrl.xsl feed.xml
+#+end_src
+
+* P3 Tools (Nice to Have)
+
+** JSON Feed (ajv)
+
+#+begin_src bash :eval no
+npm install -g ajv-cli
+ajv validate -s schemas/jsonfeed-1.1.json -d feed.json
+#+end_src
+
+* Language-Specific Libraries
+
+| Language | Library | Install | CLI/REPL |
+|----------|---------|---------|----------|
+| Clojure | atom-validator | deps.edn | =clj -X:test= |
+| Java | ROME | Maven | No CLI |
+| Python | feedparser | pip | =python -c "import feedparser; ..."= |
+| Python | atoma | pip | =python -c "import atoma; ..."= |
+| Go | gofeed | go get | No CLI |
+| Rust | feed-rs | cargo | No CLI |
+| Node | rss-parser | npm | =node -e "..."= |
+
+* Sample Feeds for Testing
+
+| Feed | URL | Format | Notes |
+|------|-----|--------|-------|
+| xkcd | https://xkcd.com/atom.xml | Atom | Simple, valid |
+| GitHub releases | https://github.com/clojure/clojure/releases.atom | Atom | Real-world |
+| Hacker News | https://hnrss.org/frontpage.atom | Atom | High volume |
+| NPR News | https://feeds.npr.org/1001/rss.xml | RSS 2.0 | Media enclosures |
+
+* Test Matrix
+
+| Feed | xmllint | atom-validator | feedparser |
+|------|---------|----------------|------------|
+| xkcd | ? | ? | ? |
+| GitHub | ? | ? | ? |
+| HN | ? | ? | ? |
+| NPR | ? | ? | ? |

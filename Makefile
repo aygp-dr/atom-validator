@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security
+.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security tools
 
 CLOJARS_USER := apace
 
@@ -14,6 +14,7 @@ help:
 	@echo "  make nvd        - Scan dependencies for CVEs (needs API key)"
 	@echo "  make security   - Run lint + nvd (advisory)"
 	@echo "  make outdated   - Check for outdated dependencies"
+	@echo "  make tools      - Download jing/trang for RelaxNG validation"
 	@echo ""
 	@echo "Build:"
 	@echo "  make clean      - Remove build artifacts"
@@ -60,6 +61,19 @@ nvd:
 # Full security check: static analysis + CVE scan (nvd advisory only)
 security: lint
 	@$(MAKE) nvd || echo "Continuing without NVD (get API key for faster scans)"
+
+# Download XML validation tools (jing, trang)
+tools:
+	@mkdir -p tools
+	@echo "Downloading jing (RelaxNG validator)..."
+	@curl -sL "https://repo1.maven.org/maven2/org/relaxng/jing/20220510/jing-20220510.jar" -o tools/jing.jar
+	@echo "Downloading trang (schema converter)..."
+	@curl -sL "https://repo1.maven.org/maven2/org/relaxng/trang/20220510/trang-20220510.jar" -o tools/trang.jar
+	@echo "Converting atom.rnc to atom.rng..."
+	@java -jar tools/trang.jar schemas/atom.rnc schemas/atom.rng
+	@echo "Tools installed. Usage:"
+	@echo "  java -jar tools/jing.jar schemas/atom.rng feed.xml"
+	@echo "  xmllint --relaxng schemas/atom.rng feed.xml --noout"
 
 coverage:
 	clojure -M:coverage

@@ -36,3 +36,6 @@ nvd_suppressions.xml
 
 # Core dumps
 *.core
+
+# Validation tools (download with: make tools)
+tools/*.jar

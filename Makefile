@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security tools
+.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security tools changelog verify-publish
 
 CLOJARS_USER := apace
 
@@ -15,6 +15,8 @@ help:
 	@echo "  make security   - Run lint + nvd (advisory)"
 	@echo "  make outdated   - Check for outdated dependencies"
 	@echo "  make tools      - Download jing/trang for RelaxNG validation"
+	@echo "  make changelog  - Generate CHANGELOG.md from git-cliff"
+	@echo "  make verify-publish - E2E verify JAR on Clojars (requires release)"
 	@echo ""
 	@echo "Build:"
 	@echo "  make clean      - Remove build artifacts"
@@ -74,6 +76,24 @@ tools:
 	@echo "Tools installed. Usage:"
 	@echo "  java -jar tools/jing.jar schemas/atom.rng feed.xml"
 	@echo "  xmllint --relaxng schemas/atom.rng feed.xml --noout"
+
+# Generate CHANGELOG.md from git-cliff (conventional commits)
+changelog:
+	@command -v git-cliff >/dev/null || (echo "Install: pkg install git-cliff" && exit 1)
+	git-cliff --output CHANGELOG.md
+	@echo "CHANGELOG.md generated"
+
+# E2E verify the latest version is actually available on Clojars
+verify-publish:
+	@VERSION="0.1.$$(git rev-list --count HEAD)" && \
+	URL="https://repo.clojars.org/org/clojars/apace/atom-validator/$$VERSION/atom-validator-$$VERSION.pom" && \
+	echo "Checking: $$URL" && \
+	if curl -sf -o /dev/null "$$URL"; then \
+	  echo "✓ v$$VERSION is published on Clojars"; \
+	else \
+	  echo "✗ v$$VERSION not found on Clojars"; \
+	  exit 1; \
+	fi
 
 coverage:
 	clojure -M:coverage

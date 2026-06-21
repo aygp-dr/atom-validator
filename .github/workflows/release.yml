@@ -79,13 +79,31 @@ jobs:
           CLOJARS_PASSWORD: ${{ secrets.CLOJARS_DEPLOY_TOKEN }}
         run: clojure -T:build deploy
 
-      - name: Extract changelog section
-        id: changelog
+      - name: E2E verify publish on Clojars
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # Extract section between [VERSION] and next [
-          awk "/^## \[$VERSION\]/,/^## \[/" CHANGELOG.md | \
-            sed '$d' > release-notes.md || echo "No changelog entry for $VERSION" > release-notes.md
+          URL="https://repo.clojars.org/org/clojars/apace/atom-validator/${VERSION}/atom-validator-${VERSION}.pom"
+          echo "Waiting for Clojars to propagate..."
+          for i in 1 2 3 4 5; do
+            if curl -sf -o /dev/null "$URL"; then
+              echo "✓ v${VERSION} verified on Clojars (attempt $i)"
+              exit 0
+            fi
+            echo "  Attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "✗ v${VERSION} NOT found on Clojars after 5 attempts"
+          exit 1
+
+      - name: Install git-cliff
+        run: |
+          curl -sL https://github.com/orhun/git-cliff/releases/download/v2.12.0/git-cliff-2.12.0-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz -C /tmp
+          sudo mv /tmp/git-cliff-2.12.0/git-cliff /usr/local/bin/
+
+      - name: Generate release notes
+        run: |
+          git-cliff --tag "${{ steps.version.outputs.tag }}" --unreleased --strip header > release-notes.md
           cat release-notes.md
 
       - name: Create GitHub Release

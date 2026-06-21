@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Sample Feed Subscriptions</title>
+    <dateCreated>Sat, 21 Jun 2026 12:00:00 GMT</dateCreated>
+    <ownerName>atom-validator test fixture</ownerName>
+  </head>
+  <body>
+    <outline text="Tech" title="Tech">
+      <outline type="rss"
+               text="Hacker News"
+               title="Hacker News"
+               xmlUrl="https://hnrss.org/frontpage"
+               htmlUrl="https://news.ycombinator.com/"/>
+      <outline type="atom"
+               text="xkcd"
+               title="xkcd"
+               xmlUrl="https://xkcd.com/atom.xml"
+               htmlUrl="https://xkcd.com/"/>
+      <outline text="Clojure"
+               title="Clojure">
+        <outline type="atom"
+                 text="Clojure Releases"
+                 title="Clojure Releases"
+                 xmlUrl="https://github.com/clojure/clojure/releases.atom"
+                 htmlUrl="https://github.com/clojure/clojure/releases"/>
+      </outline>
+    </outline>
+    <outline text="News" title="News">
+      <outline type="rss"
+               text="BBC News"
+               title="BBC News"
+               xmlUrl="http://feeds.bbci.co.uk/news/rss.xml"
+               htmlUrl="https://www.bbc.com/news"/>
+    </outline>
+    <outline type="atom"
+             text="Uncategorised Feed"
+             title="Uncategorised Feed"
+             xmlUrl="https://example.com/uncategorised.atom"
+             htmlUrl="https://example.com/"/>
+  </body>
+</opml>

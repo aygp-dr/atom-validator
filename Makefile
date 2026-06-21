@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security tools changelog verify-publish
+.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security tools changelog verify-publish cli-test
 
 CLOJARS_USER := apace
 
@@ -8,6 +8,7 @@ help:
 	@echo "Development:"
 	@echo "  make repl       - Start REPL with CIDER middleware"
 	@echo "  make test       - Run test suite"
+	@echo "  make cli-test   - Smoke-test bin/atom-validate against fixtures"
 	@echo "  make lint       - Check for issues (clj-kondo)"
 	@echo "  make storm      - Start FlowStorm time-travel debugger"
 	@echo "  make check      - Run lint + test"
@@ -35,6 +36,12 @@ clean:
 
 test:
 	clj -X:test
+
+# Smoke-test the Babashka CLI against test fixtures.
+# Asserts exit codes per the contract:
+#   0 = valid, 1 = invalid (validation errors), 2 = error (parse/network/args)
+cli-test:
+	@bash scripts/cli-test.sh
 
 repl:
 	clj -M:dev:test -m nrepl.cmdline \

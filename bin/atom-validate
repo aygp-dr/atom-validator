@@ -1,0 +1,757 @@
+#!/usr/bin/env bb
+;; atom-validate - Production CLI for atom-validator
+;;
+;; Validates Atom, RSS 2.0, and JSON Feed documents from files, URLs, or stdin.
+;;
+;; Usage:
+;;   bin/atom-validate feed.xml
+;;   bin/atom-validate https://example.com/feed.atom
+;;   bin/atom-validate --format json feed.xml
+;;   bin/atom-validate --strict feed.xml
+;;   bin/atom-validate --no-semantic feed.xml
+;;   bin/atom-validate --quiet feed.xml
+;;   bin/atom-validate --help
+;;   echo '<feed>...' | bin/atom-validate -
+;;
+;; Exit codes:
+;;   0 - Valid feed
+;;   1 - Invalid feed (validation errors)
+;;   2 - Error (network, parse failure, invalid args)
+
+(ns atom-validate
+  (:require [babashka.cli :as cli]
+            [babashka.http-client :as http]
+            [cheshire.core :as json]
+            [clojure.data.xml :as xml]
+            [clojure.java.io :as io]
+            [clojure.pprint :as pp]
+            [clojure.string :as str])
+  (:import [java.io StringReader]
+           [java.net URI]
+           [java.text ParseException SimpleDateFormat]
+           [java.time DayOfWeek OffsetDateTime ZonedDateTime]
+           [java.time.format DateTimeFormatter DateTimeParseException]
+           [java.util Locale TimeZone]))
+
+;; =============================================================================
+;; Constants
+;; =============================================================================
+
+(def exit-valid 0)
+(def exit-invalid 1)
+(def exit-error 2)
+
+(def version "0.2.0-bb")
+
+(def usage
+  "atom-validate - Validate Atom, RSS 2.0, and JSON Feed documents
+
+USAGE
+  atom-validate [OPTIONS] <SOURCE>
+  atom-validate [OPTIONS] -            (read from stdin)
+  atom-validate --help
+
+SOURCE
+  Path to a feed file, or an http(s) URL, or '-' for stdin.
+
+OPTIONS
+  --format FORMAT    Output format: 'pretty' (default) or 'json'
+  --strict           Treat warnings as errors
+  --no-semantic      Skip semantic checks (day-of-week, etc.)
+  --quiet            Suppress all output; only set exit code
+  --help, -h         Show this help text
+  --version          Show version
+
+EXIT CODES
+  0  Valid feed
+  1  Invalid feed (validation errors)
+  2  Error (network, parse failure, invalid args)
+
+EXAMPLES
+  atom-validate feed.xml
+  atom-validate https://xkcd.com/atom.xml
+  atom-validate --format json feed.xml
+  atom-validate --strict --no-semantic feed.atom
+  curl -s https://example.com/feed | atom-validate -
+")
+
+;; =============================================================================
+;; I/O: Source loading (file, URL, stdin)
+;; =============================================================================
+
+(defn url? [s]
+  (and (string? s)
+       (or (str/starts-with? s "http://")
+           (str/starts-with? s "https://"))))
+
+(defn fetch-url
+  "Fetch a feed from an HTTP(S) URL. Returns body string or throws."
+  [url]
+  (let [resp (http/get url {:headers {"User-Agent"
+                                      (str "atom-validate/" version)
+                                      "Accept" "application/atom+xml, application/rss+xml, application/feed+json, application/xml, application/json, */*"}
+                            :throw false})]
+    (when-not (= 200 (:status resp))
+      (throw (ex-info (str "HTTP " (:status resp) " fetching " url)
+                      {:status (:status resp) :url url})))
+    (:body resp)))
+
+(defn read-source
+  "Load feed content from a source spec: '-' (stdin), URL, or file path.
+   Returns the body string or throws ex-info with :kind."
+  [source]
+  (cond
+    (= "-" source)
+    (slurp *in*)
+
+    (url? source)
+    (try
+      (fetch-url source)
+      (catch Exception e
+        (throw (ex-info (str "Failed to fetch URL: " (ex-message e))
+                        {:kind :network :source source} e))))
+
+    :else
+    (let [f (io/file source)]
+      (when-not (.exists f)
+        (throw (ex-info (str "File not found: " source)
+                        {:kind :file-not-found :source source})))
+      (slurp f))))
+
+;; =============================================================================
+;; Format detection
+;; =============================================================================
+
+(defn detect-format
+  "Detect feed format from content. Returns :atom, :rss, :json-feed, or :unknown."
+  [content]
+  (let [trimmed (str/triml (or content ""))]
+    (cond
+      (str/starts-with? trimmed "{")
+      :json-feed
+
+      :else
+      (try
+        (let [root (xml/parse (StringReader. trimmed))
+              root-tag (name (:tag root))]
+          (cond
+            (= root-tag "feed") :atom
+            (= root-tag "rss") :rss
+            (= root-tag "RDF") :rss
+            :else :unknown))
+        (catch Exception _
+          :unknown)))))
+
+;; =============================================================================
+;; XML helpers
+;; =============================================================================
+
+(defn- local-name [kw]
+  (let [n (name kw)]
+    (if (str/includes? n "/")
+      (second (str/split n #"/"))
+      n)))
+
+(defn- find-children [element tag-name]
+  (filter #(and (map? %)
+                (= (local-name (:tag %)) tag-name))
+          (:content element)))
+
+(defn- find-child [element tag-name]
+  (first (find-children element tag-name)))
+
+(defn- text-content [element]
+  (when element
+    (str/join "" (filter string? (:content element)))))
+
+;; =============================================================================
+;; Error/Warning constructors
+;; =============================================================================
+
+(defn- err
+  ([code message] {:type :error :code code :message message})
+  ([code message path] {:type :error :code code :message message :path path}))
+
+(defn- warn
+  ([code message] {:type :warning :code code :message message})
+  ([code message path] {:type :warning :code code :message message :path path}))
+
+;; =============================================================================
+;; Date parsing
+;; =============================================================================
+
+(defn parse-rfc3339
+  "Parse an RFC 3339 datetime. Returns OffsetDateTime or nil."
+  [s]
+  (when (and s (string? s) (not (str/blank? s)))
+    (try
+      (OffsetDateTime/parse (str/trim s) DateTimeFormatter/ISO_OFFSET_DATE_TIME)
+      (catch DateTimeParseException _
+        (try
+          (.toOffsetDateTime (ZonedDateTime/parse (str/trim s) DateTimeFormatter/ISO_ZONED_DATE_TIME))
+          (catch DateTimeParseException _ nil))))))
+
+(def rfc822-patterns
+  ;; SimpleDateFormat is lenient about day-name vs date mismatch, matching
+  ;; the behavior of atom-validator.rss/parse-rfc822 (and most RSS readers).
+  ["EEE, dd MMM yyyy HH:mm:ss Z"
+   "EEE, dd MMM yyyy HH:mm:ss zzz"
+   "dd MMM yyyy HH:mm:ss Z"
+   "dd MMM yyyy HH:mm:ss zzz"
+   "EEE, dd MMM yyyy HH:mm Z"
+   "EEE, dd MMM yy HH:mm:ss Z"])
+
+(defn parse-rfc822
+  "Parse an RFC 822 datetime (RSS). Returns java.util.Date or nil."
+  [s]
+  (when (and s (string? s) (not (str/blank? s)))
+    (let [trimmed (str/trim s)]
+      (some (fn [fmt]
+              (try
+                (let [sdf (SimpleDateFormat. fmt Locale/US)]
+                  (.setTimeZone sdf (TimeZone/getTimeZone "UTC"))
+                  (.parse sdf trimmed))
+                (catch ParseException _ nil)))
+            rfc822-patterns))))
+
+;; =============================================================================
+;; URL validation
+;; =============================================================================
+
+(def suspicious-tld-suffixes
+  #{"site" "page" "path" "events" "api" "app"})
+
+(defn- suspicious-tld? [tld]
+  (when tld
+    (some (fn [suffix]
+            (and (> (count tld) (count suffix))
+                 (str/ends-with? tld suffix)))
+          suspicious-tld-suffixes)))
+
+(defn- urn? [s]
+  (when s (re-matches #"^urn:[a-zA-Z0-9][a-zA-Z0-9-]*:.*$" s)))
+
+(defn- tag-uri? [s]
+  (when s (re-matches #"^tag:[a-zA-Z0-9.-]+,\d{4}(-\d{2}(-\d{2})?)?:.*$" s)))
+
+(defn validate-url
+  "Validate an absolute http/https URL. Returns nil if valid, error map otherwise.
+   When allow-iri? is true, accepts URNs and tag: URIs as well."
+  [url-str path & {:keys [allow-iri?] :or {allow-iri? false}}]
+  (cond
+    (and allow-iri? (or (urn? url-str) (tag-uri? url-str)))
+    nil
+
+    (or (nil? url-str) (str/blank? url-str))
+    (err :invalid-url "Empty URL" path)
+
+    :else
+    (let [uri (try (URI. url-str) (catch Exception _ nil))]
+      (cond
+        (nil? uri)
+        (err :invalid-url (str "Invalid URL syntax: " url-str) path)
+
+        (not (#{"http" "https"} (.getScheme uri)))
+        (err :invalid-url-scheme (str "URL must use http or https scheme: " url-str) path)
+
+        :else
+        (let [host (.getHost uri)
+              parts (when host (str/split host #"\."))
+              tld (when parts (last parts))
+              hostname-pattern #"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$"]
+          (cond
+            (or (nil? host) (str/blank? host))
+            (err :invalid-url-host (str "URL has no host: " url-str) path)
+
+            (not (re-matches hostname-pattern host))
+            (err :invalid-url-host (str "URL has invalid host: " url-str) path)
+
+            (< (count parts) 2)
+            (err :invalid-url-host (str "URL host requires a TLD: " url-str) path)
+
+            (< (count tld) 2)
+            (err :invalid-url-host (str "URL TLD too short: " url-str) path)
+
+            (suspicious-tld? tld)
+            (err :invalid-url-host (str "URL has suspicious TLD '" tld "': " url-str) path)
+
+            :else nil))))))
+
+;; =============================================================================
+;; Atom parsing
+;; =============================================================================
+
+(defn- parse-link [el]
+  {:href (get-in el [:attrs :href])
+   :rel (get-in el [:attrs :rel] "alternate")
+   :type (get-in el [:attrs :type])})
+
+(defn- parse-person [el]
+  {:name (text-content (find-child el "name"))
+   :uri (text-content (find-child el "uri"))
+   :email (text-content (find-child el "email"))})
+
+(defn- parse-content [el]
+  (when el
+    {:type (get-in el [:attrs :type] "text")
+     :value (text-content el)}))
+
+(defn parse-atom-entry [el]
+  {:id (text-content (find-child el "id"))
+   :title (text-content (find-child el "title"))
+   :updated (text-content (find-child el "updated"))
+   :published (text-content (find-child el "published"))
+   :summary (text-content (find-child el "summary"))
+   :content (parse-content (find-child el "content"))
+   :authors (mapv parse-person (find-children el "author"))
+   :links (mapv parse-link (find-children el "link"))})
+
+(defn parse-atom-feed [source]
+  (let [root (xml/parse (StringReader. source))]
+    {:format :atom
+     :id (text-content (find-child root "id"))
+     :title (text-content (find-child root "title"))
+     :updated (text-content (find-child root "updated"))
+     :authors (mapv parse-person (find-children root "author"))
+     :links (mapv parse-link (find-children root "link"))
+     :entries (mapv parse-atom-entry (find-children root "entry"))}))
+
+;; =============================================================================
+;; Atom validation (RFC 4287)
+;; =============================================================================
+
+(defn validate-atom-entry [entry idx]
+  (let [issues (transient [])]
+    (when (or (nil? (:id entry)) (str/blank? (:id entry)))
+      (conj! issues (err :missing-entry-id "Entry must contain an id element" [:entries idx :id])))
+    (when (or (nil? (:title entry)) (str/blank? (:title entry)))
+      (conj! issues (err :missing-entry-title "Entry must contain a title element" [:entries idx :title])))
+    (cond
+      (or (nil? (:updated entry)) (str/blank? (:updated entry)))
+      (conj! issues (err :missing-entry-updated "Entry must contain an updated element" [:entries idx :updated]))
+      (nil? (parse-rfc3339 (:updated entry)))
+      (conj! issues (err :invalid-entry-updated
+                         (str "Entry updated must be valid RFC 3339 datetime: " (:updated entry))
+                         [:entries idx :updated])))
+    (let [has-content? (some? (get-in entry [:content :value]))
+          has-alternate? (some #(#{"alternate" nil} (:rel %)) (:links entry))]
+      (when-not (or has-content? has-alternate?)
+        (conj! issues (err :missing-content-or-link
+                           "Entry must have content or alternate link"
+                           [:entries idx]))))
+    ;; URL validation
+    (when (:id entry)
+      (when-let [e (validate-url (:id entry) [:entries idx :id] :allow-iri? true)]
+        (conj! issues e)))
+    (doseq [[link-idx link] (map-indexed vector (:links entry))]
+      (when-let [href (:href link)]
+        (when-let [e (validate-url href [:entries idx :links link-idx :href])]
+          (conj! issues e))))
+    (persistent! issues)))
+
+;; Day-of-week semantics
+
+(def day-names
+  {1 #{"monday" "mon"}
+   2 #{"tuesday" "tue" "tues"}
+   3 #{"wednesday" "wed"}
+   4 #{"thursday" "thu" "thurs" "thur"}
+   5 #{"friday" "fri"}
+   6 #{"saturday" "sat"}
+   7 #{"sunday" "sun"}})
+
+(def day-pattern
+  #"(?i)\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thurs|thur|fri|sat|sun)\b")
+
+(defn- day-of-week-num
+  "Java DayOfWeek -> 1-7 (Monday=1)."
+  [^DayOfWeek dow]
+  (.getValue dow))
+
+(defn- extract-day-from-title [title]
+  (when-let [match (re-find day-pattern (or title ""))]
+    (let [day-name (str/lower-case (second match))
+          day-num (first (for [[num names] day-names
+                               :when (contains? names day-name)]
+                           num))]
+      {:day-name (second match) :day-num day-num})))
+
+(defn validate-atom-semantics [feed]
+  (mapcat
+   (fn [[idx entry]]
+     (let [title (:title entry)
+           title-day (extract-day-from-title title)
+           updated (parse-rfc3339 (:updated entry))
+           actual-num (when updated (day-of-week-num (.getDayOfWeek updated)))]
+       (when (and title-day actual-num
+                  (not= (:day-num title-day) actual-num))
+         [(err :day-of-week-mismatch
+               (str "Title says '" (:day-name title-day)
+                    "' but updated date is a "
+                    (str/capitalize (str/lower-case (str (.getDayOfWeek updated)))))
+               [:entries idx :title])])))
+   (map-indexed vector (:entries feed))))
+
+(defn validate-atom [feed {:keys [semantic?] :or {semantic? true}}]
+  (let [issues (transient [])]
+    ;; Feed-level required elements
+    (cond
+      (nil? (:id feed))
+      (conj! issues (err :missing-feed-id "Feed must contain an id element"))
+      (str/blank? (:id feed))
+      (conj! issues (err :empty-feed-id "Feed id element must not be empty")))
+    (when (or (nil? (:title feed)) (str/blank? (:title feed)))
+      (conj! issues (err :missing-feed-title "Feed must contain a title element")))
+    (cond
+      (or (nil? (:updated feed)) (str/blank? (:updated feed)))
+      (conj! issues (err :missing-feed-updated "Feed must contain an updated element"))
+      (nil? (parse-rfc3339 (:updated feed)))
+      (conj! issues (err :invalid-feed-updated
+                         (str "Feed updated must be valid RFC 3339 datetime: " (:updated feed)))))
+
+    ;; Author warning
+    (let [feed-has-author? (seq (:authors feed))
+          entries-without-author (filter #(empty? (:authors %)) (:entries feed))]
+      (when (and (not feed-has-author?) (seq entries-without-author))
+        (conj! issues (warn :missing-authors
+                            "Feed has no author and some entries lack authors"))))
+
+    ;; Feed freshness: feed updated >= max(entry updated)
+    (let [feed-updated (parse-rfc3339 (:updated feed))
+          entry-dates (keep #(parse-rfc3339 (:updated %)) (:entries feed))
+          max-entry (when (seq entry-dates)
+                      (reduce #(if (.isAfter %1 %2) %1 %2) entry-dates))]
+      (when (and feed-updated max-entry (.isBefore feed-updated max-entry))
+        (conj! issues (err :stale-feed-updated
+                           (str "Feed updated (" (:updated feed) ") is older than newest entry")
+                           [:updated]))))
+
+    ;; Feed-level URLs
+    (doseq [[link-idx link] (map-indexed vector (:links feed))]
+      (when-let [href (:href link)]
+        (when-let [e (validate-url href [:links link-idx :href])]
+          (conj! issues e))))
+
+    ;; Entries
+    (doseq [[idx entry] (map-indexed vector (:entries feed))]
+      (doseq [issue (validate-atom-entry entry idx)]
+        (conj! issues issue)))
+
+    ;; Semantic
+    (when semantic?
+      (doseq [issue (validate-atom-semantics feed)]
+        (conj! issues issue)))
+
+    (persistent! issues)))
+
+;; =============================================================================
+;; RSS parsing & validation
+;; =============================================================================
+
+(defn- parse-rss-item [el]
+  {:title (text-content (find-child el "title"))
+   :link (text-content (find-child el "link"))
+   :description (text-content (find-child el "description"))
+   :pub-date (text-content (find-child el "pubDate"))
+   :guid (when-let [g (find-child el "guid")]
+           {:value (text-content g)
+            :is-perma-link (get-in g [:attrs :isPermaLink] "true")})})
+
+(defn parse-rss-feed [source]
+  (let [root (xml/parse (StringReader. source))
+        channel (find-child root "channel")]
+    {:format :rss
+     :version (get-in root [:attrs :version] "2.0")
+     :title (text-content (find-child channel "title"))
+     :link (text-content (find-child channel "link"))
+     :description (text-content (find-child channel "description"))
+     :pub-date (text-content (find-child channel "pubDate"))
+     :last-build-date (text-content (find-child channel "lastBuildDate"))
+     :items (mapv parse-rss-item (find-children channel "item"))}))
+
+(defn validate-rss [feed _opts]
+  (let [issues (transient [])]
+    (when (or (nil? (:title feed)) (str/blank? (:title feed)))
+      (conj! issues (err :missing-channel-title "Channel must contain a title element")))
+    (when (or (nil? (:link feed)) (str/blank? (:link feed)))
+      (conj! issues (err :missing-channel-link "Channel must contain a link element")))
+    (when (or (nil? (:description feed)) (str/blank? (:description feed)))
+      (conj! issues (err :missing-channel-description "Channel must contain a description element")))
+
+    (when-let [pd (:pub-date feed)]
+      (when (and (not (str/blank? pd)) (nil? (parse-rfc822 pd)))
+        (conj! issues (err :invalid-pubdate
+                           (str "Channel pubDate must be valid RFC 822 datetime: " pd)
+                           [:pub-date]))))
+    (when-let [lbd (:last-build-date feed)]
+      (when (and (not (str/blank? lbd)) (nil? (parse-rfc822 lbd)))
+        (conj! issues (err :invalid-pubdate
+                           (str "Channel lastBuildDate must be valid RFC 822 datetime: " lbd)
+                           [:last-build-date]))))
+
+    ;; Items
+    (doseq [[idx item] (map-indexed vector (:items feed))]
+      (let [has-title? (and (:title item) (not (str/blank? (:title item))))
+            has-desc? (and (:description item) (not (str/blank? (:description item))))]
+        (when-not (or has-title? has-desc?)
+          (conj! issues (err :missing-item-content
+                             "Item must contain at least a title or description element"
+                             [:items idx]))))
+      (when-let [pd (:pub-date item)]
+        (when (and (not (str/blank? pd)) (nil? (parse-rfc822 pd)))
+          (conj! issues (err :invalid-pubdate
+                             (str "Item pubDate must be valid RFC 822 datetime: " pd)
+                             [:items idx :pub-date])))))
+
+    ;; Duplicate guid warnings
+    (let [guids (keep #(get-in % [:guid :value]) (:items feed))
+          dups (for [[g items] (group-by identity guids) :when (> (count items) 1)] g)]
+      (doseq [g dups]
+        (conj! issues (warn :duplicate-guid (str "Duplicate guid found: " g)))))
+
+    (persistent! issues)))
+
+;; =============================================================================
+;; JSON Feed parsing & validation (1.1)
+;; =============================================================================
+
+(def valid-jsonfeed-versions
+  #{"https://jsonfeed.org/version/1"
+    "https://jsonfeed.org/version/1.1"})
+
+(def iso8601-pattern
+  #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d{2}:\d{2})$")
+
+(defn parse-json-feed [source]
+  (let [m (json/parse-string source true)]
+    (assoc m :format :json-feed)))
+
+(defn validate-json-feed [feed _opts]
+  (let [issues (transient [])]
+    ;; Version
+    (cond
+      (nil? (:version feed))
+      (conj! issues (err :missing-version "Feed must contain a version field"))
+      (not (valid-jsonfeed-versions (:version feed)))
+      (conj! issues (err :invalid-version
+                         (str "Feed version must be a valid jsonfeed.org URL, got: "
+                              (:version feed)))))
+    ;; Title
+    (when (or (nil? (:title feed)) (str/blank? (:title feed)))
+      (conj! issues (err :missing-title "Feed must contain a title field")))
+    ;; Items
+    (cond
+      (nil? (:items feed))
+      (conj! issues (err :missing-items "Feed must contain an items array"))
+      (not (sequential? (:items feed)))
+      (conj! issues (err :invalid-items "Feed items must be an array")))
+
+    ;; Feed-level URLs
+    (doseq [field [:home_page_url :feed_url]]
+      (when-let [u (get feed field)]
+        (when-let [e (validate-url u [field])]
+          (conj! issues e))))
+
+    ;; Authors warning
+    (when-let [authors (:authors feed)]
+      (when (and (sequential? authors)
+                 (some #(and (map? %) (str/blank? (:name %))) authors))
+        (conj! issues (warn :author-missing-name
+                            "Author objects should have a name field"))))
+
+    ;; Items
+    (when (sequential? (:items feed))
+      (doseq [[idx item] (map-indexed vector (:items feed))]
+        (when (or (nil? (:id item)) (str/blank? (str (:id item))))
+          (conj! issues (err :missing-item-id "Item must contain an id field"
+                             [:items idx :id])))
+        (let [has-html? (and (:content_html item) (not (str/blank? (:content_html item))))
+              has-text? (and (:content_text item) (not (str/blank? (:content_text item))))]
+          (when-not (or has-html? has-text?)
+            (conj! issues (err :missing-item-content
+                               "Item must contain content_html or content_text"
+                               [:items idx]))))
+        (doseq [field [:date_published :date_modified]]
+          (when-let [d (get item field)]
+            (when-not (re-matches iso8601-pattern d)
+              (conj! issues (err :invalid-date
+                                 (str "Item " (name field) " must be valid ISO 8601: " d)
+                                 [:items idx field])))))
+        (doseq [field [:url :external_url :image :banner_image]]
+          (when-let [u (get item field)]
+            (when-let [e (validate-url u [:items idx field])]
+              (conj! issues e))))))
+
+    (persistent! issues)))
+
+;; =============================================================================
+;; Top-level dispatch
+;; =============================================================================
+
+(defn validate-feed
+  "Validate content. Returns {:valid? bool :format kw :errors [...] :warnings [...]}."
+  [content {:keys [strict? semantic? format] :as opts}]
+  (let [fmt (or format (detect-format content))
+        [parsed issues] (case fmt
+                          :atom      (let [p (parse-atom-feed content)]
+                                       [p (validate-atom p opts)])
+                          :rss       (let [p (parse-rss-feed content)]
+                                       [p (validate-rss p opts)])
+                          :json-feed (let [p (parse-json-feed content)]
+                                       [p (validate-json-feed p opts)])
+                          ;; Unknown: try Atom
+                          (let [p (parse-atom-feed content)]
+                            [p (validate-atom p opts)]))
+        errors (vec (filter #(= :error (:type %)) issues))
+        warnings (vec (filter #(= :warning (:type %)) issues))
+        effective (if strict? (concat errors warnings) errors)]
+    {:valid? (empty? effective)
+     :format fmt
+     :errors errors
+     :warnings warnings
+     :feed parsed}))
+
+;; =============================================================================
+;; Output formatting
+;; =============================================================================
+
+(defn- color? []
+  ;; Disable color unless on a TTY and NO_COLOR is unset.
+  (and (nil? (System/getenv "NO_COLOR"))
+       (some? (System/console))))
+
+(defn- c [color s]
+  (if (color?)
+    (str (case color
+           :red    "\u001b[31m"
+           :green  "\u001b[32m"
+           :yellow "\u001b[33m"
+           :cyan   "\u001b[36m"
+           :bold   "\u001b[1m"
+           "")
+         s
+         "\u001b[0m")
+    s))
+
+(defn- format-path [path]
+  (when (seq path)
+    (str " at " (pr-str (vec path)))))
+
+(defn print-pretty [result {:keys [source]}]
+  (let [{:keys [valid? format errors warnings]} result]
+    (println (c :bold (str "Source:  " source)))
+    (println (c :bold (str "Format:  " (name format))))
+    (println (c :bold (str "Status:  "
+                           (if valid?
+                             (c :green "VALID")
+                             (c :red "INVALID")))))
+    (when (seq errors)
+      (println)
+      (println (c :red (str "Errors (" (count errors) "):")))
+      (doseq [e errors]
+        (println (str "  " (c :red "✗") " ["
+                      (name (:code e)) "] "
+                      (:message e)
+                      (format-path (:path e))))))
+    (when (seq warnings)
+      (println)
+      (println (c :yellow (str "Warnings (" (count warnings) "):")))
+      (doseq [w warnings]
+        (println (str "  " (c :yellow "!") " ["
+                      (name (:code w)) "] "
+                      (:message w)
+                      (format-path (:path w))))))
+    (when (and valid? (empty? warnings))
+      (println)
+      (println (c :green "No issues found.")))))
+
+(defn- ->json-issue [m]
+  (cond-> {:code (name (:code m))
+           :message (:message m)
+           :type (name (:type m))}
+    (:path m) (assoc :path (mapv (fn [x] (if (keyword? x) (name x) x)) (:path m)))))
+
+(defn print-json [result {:keys [source]}]
+  (let [{:keys [valid? format errors warnings]} result
+        out {:source source
+             :format (name format)
+             :valid valid?
+             :errors (mapv ->json-issue errors)
+             :warnings (mapv ->json-issue warnings)}]
+    (println (json/generate-string out {:pretty true}))))
+
+;; =============================================================================
+;; CLI
+;; =============================================================================
+
+(def cli-spec
+  {:spec
+   {:format     {:desc "Output format: pretty or json"
+                 :default "pretty"
+                 :validate {:pred #(contains? #{"pretty" "json"} %)
+                            :ex-msg (fn [_] "--format must be 'pretty' or 'json'")}}
+    :strict     {:desc "Treat warnings as errors"
+                 :coerce :boolean
+                 :default false}
+    :no-semantic {:desc "Skip semantic checks (day-of-week)"
+                  :coerce :boolean
+                  :default false}
+    :quiet      {:desc "Suppress output; rely on exit code"
+                 :coerce :boolean
+                 :default false}
+    :help       {:desc "Show help" :coerce :boolean :default false :alias :h}
+    :version    {:desc "Show version" :coerce :boolean :default false}}
+   :args->opts [:source]
+   :restrict [:format :strict :no-semantic :quiet :help :version :source]})
+
+(defn -main [& args]
+  (let [opts (try
+               (cli/parse-opts args cli-spec)
+               (catch Exception e
+                 (binding [*out* *err*]
+                   (println (str "error: " (ex-message e))))
+                 (System/exit exit-error)))]
+    (cond
+      (:help opts)
+      (do (print usage) (flush) (System/exit exit-valid))
+
+      (:version opts)
+      (do (println (str "atom-validate " version)) (System/exit exit-valid))
+
+      (nil? (:source opts))
+      (do (binding [*out* *err*]
+            (println "error: no source provided (file, URL, or '-')")
+            (println "Try 'atom-validate --help' for usage."))
+          (System/exit exit-error))
+
+      :else
+      (let [source (:source opts)
+            quiet? (:quiet opts)
+            content (try
+                      (read-source source)
+                      (catch clojure.lang.ExceptionInfo e
+                        (when-not quiet?
+                          (binding [*out* *err*]
+                            (println (str "error: " (ex-message e)))))
+                        (System/exit exit-error))
+                      (catch Exception e
+                        (when-not quiet?
+                          (binding [*out* *err*]
+                            (println (str "error: " (ex-message e)))))
+                        (System/exit exit-error)))
+            result (try
+                     (validate-feed content
+                                    {:strict? (:strict opts)
+                                     :semantic? (not (:no-semantic opts))})
+                     (catch Exception e
+                       (when-not quiet?
+                         (binding [*out* *err*]
+                           (println (str "error: failed to parse feed: " (ex-message e)))))
+                       (System/exit exit-error)))]
+        (when-not quiet?
+          (case (:format opts)
+            "json"   (print-json result {:source source})
+            "pretty" (print-pretty result {:source source})))
+        (System/exit (if (:valid? result) exit-valid exit-invalid))))))
+
+(apply -main *command-line-args*)

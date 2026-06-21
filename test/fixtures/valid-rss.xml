@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Example RSS Feed</title>
+    <link>https://example.org/</link>
+    <description>An example RSS 2.0 feed for testing the atom-validator library.</description>
+    <language>en-us</language>
+    <pubDate>Sat, 21 Jun 2026 12:00:00 +0000</pubDate>
+    <lastBuildDate>Sat, 21 Jun 2026 12:00:00 +0000</lastBuildDate>
+    <generator>atom-validator test suite</generator>
+    <docs>https://www.rssboard.org/rss-specification</docs>
+    <ttl>60</ttl>
+    <category>Technology</category>
+    <category>Software</category>
+    <atom:link href="https://example.org/feed.rss" rel="self" type="application/rss+xml"/>
+
+    <item>
+      <title>First Post: Getting Started with RSS</title>
+      <link>https://example.org/2026/06/21/first-post/</link>
+      <description>This is the first post in our RSS feed. It demonstrates basic RSS item structure.</description>
+      <author>author@example.org (John Doe)</author>
+      <pubDate>Sat, 21 Jun 2026 10:00:00 +0000</pubDate>
+      <guid isPermaLink="true">https://example.org/2026/06/21/first-post/</guid>
+      <category>Introduction</category>
+    </item>
+
+    <item>
+      <title>Second Post: Advanced RSS Features</title>
+      <link>https://example.org/2026/06/21/second-post/</link>
+      <description>&lt;p&gt;This post covers advanced RSS features including:&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;Enclosures for podcasts&lt;/li&gt;
+  &lt;li&gt;Multiple categories&lt;/li&gt;
+  &lt;li&gt;HTML content&lt;/li&gt;
+&lt;/ul&gt;</description>
+      <pubDate>Sat, 21 Jun 2026 11:00:00 +0000</pubDate>
+      <guid isPermaLink="false">urn:uuid:550e8400-e29b-41d4-a716-446655440000</guid>
+      <category>Tutorial</category>
+      <category>RSS</category>
+      <enclosure url="https://example.org/media/podcast-episode-1.mp3" length="12345678" type="audio/mpeg"/>
+    </item>
+
+    <item>
+      <title>Third Post: Description Only</title>
+      <description>This item has a description but no link. Per RSS 2.0 spec, an item must have either a title or description (or both).</description>
+      <pubDate>Sat, 21 Jun 2026 11:30:00 +0000</pubDate>
+      <guid>urn:uuid:660e8400-e29b-41d4-a716-446655440001</guid>
+    </item>
+
+  </channel>
+</rss>

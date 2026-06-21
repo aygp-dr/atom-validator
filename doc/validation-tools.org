@@ -11,7 +11,7 @@
 | P1 | Atom RelaxNG schema | RFC 4287 Appendix B | ✓ Downloaded | =schemas/atom.rnc= |
 | P1 | RNC → RNG conversion | trang | ✓ Installed | =trang atom.rnc atom.rng= |
 | P2 | DTD validation | xmllint | ✓ Available | RSS 0.91 only |
-| P2 | Schematron rules | schematron-basex | Not installed | Cross-element validation |
+| P2 | Schematron rules | Saxon + ISO stylesheets | ✓ Ready | =schemas/atom.sch= |
 | P2 | W3C Feed Validator | feedvalidator | Not installed | Python package |
 | P3 | XSD validation | xmllint | ✓ Available | Community schemas only |
 | P3 | NVDL dispatch | jnvdl | Not installed | Multi-namespace |
@@ -73,14 +73,167 @@ feedvalidator https://example.com/feed.atom
 feedvalidator feed.xml
 #+end_src
 
-** Schematron
+** Schematron (schemas/atom.sch)
 
-Rule-based validation for cross-element constraints.
+Rule-based validation for cross-element constraints that RelaxNG cannot express.
+The project includes =schemas/atom.sch= with rules for:
+
+| Rule ID | Constraint | Severity |
+|---------|------------|----------|
+| entry-content-or-alternate | Entry MUST have content OR alternate link | error |
+| entry-author-required | Entry MUST have author if feed has none | error |
+| stale-feed-updated | Feed updated SHOULD be >= max(entry updated) | warning |
+| duplicate-link-combination | No duplicate rel+type+hreflang combinations | error |
+| id-no-scheme | atom:id MUST be a valid IRI with scheme | error |
+| invalid-date-format | Dates MUST be RFC 3339 format | error |
+| feed-missing-self-link | Feed SHOULD have self link | warning |
+
+*** Installation
+
+Schematron requires XSLT processing. Options:
 
 #+begin_src bash :eval no
-# Using Saxon
-java -jar saxon-he.jar -xsl:schematron/iso_svrl.xsl feed.xml
+# Option 1: Saxon-HE (recommended, Java)
+# Download from https://github.com/Saxonica/Saxon-HE/releases
+curl -LO https://repo1.maven.org/maven2/net/sf/saxon/Saxon-HE/12.4/Saxon-HE-12.4.jar
+mv Saxon-HE-12.4.jar tools/
+
+# Option 2: xsltproc (libxslt, already installed on most systems)
+# Requires ISO Schematron stylesheets
+
+# Get ISO Schematron stylesheets
+git clone https://github.com/Schematron/schematron.git tools/schematron-xsl
 #+end_src
+
+*** Validation (Two-Step Process)
+
+Schematron validation is a two-step XSLT transformation:
+
+1. Compile .sch to .xsl (schema → stylesheet)
+2. Apply .xsl to feed.xml (validate → SVRL report)
+
+**** Using Saxon-HE (XSLT2, recommended)
+
+#+begin_src bash :eval no
+# Step 1: Compile Schematron to XSLT
+java -jar tools/Saxon-HE-12.4.jar \
+  -xsl:tools/schematron-xsl/xslt/iso_svrl_for_xslt2.xsl \
+  -s:schemas/atom.sch \
+  -o:schemas/atom-compiled.xsl
+
+# Step 2: Validate feed and generate SVRL report
+java -jar tools/Saxon-HE-12.4.jar \
+  -xsl:schemas/atom-compiled.xsl \
+  -s:test/fixtures/sample-feed.xml \
+  -o:report.svrl
+
+# View errors/warnings (SVRL contains svrl:failed-assert and svrl:successful-report)
+grep -E 'failed-assert|successful-report' report.svrl
+#+end_src
+
+**** Using xsltproc (XSLT1, simpler setup)
+
+#+begin_src bash :eval no
+# Step 1: Compile (uses XSLT1 stylesheet)
+xsltproc tools/schematron-xsl/xslt/iso_svrl_for_xslt1.xsl \
+  schemas/atom.sch > schemas/atom-compiled.xsl
+
+# Step 2: Validate
+xsltproc schemas/atom-compiled.xsl test/fixtures/sample-feed.xml > report.svrl
+#+end_src
+
+**** One-liner with SchXslt (alternative)
+
+SchXslt is a modern XSLT3 Schematron implementation:
+
+#+begin_src bash :eval no
+# Install SchXslt
+curl -LO https://github.com/schxslt/schxslt/releases/download/v1.9.5/schxslt-1.9.5.zip
+unzip schxslt-1.9.5.zip -d tools/schxslt
+
+# Validate (single step, includes compilation)
+java -jar tools/Saxon-HE-12.4.jar \
+  -xsl:tools/schxslt/xslt/2.0/compile-for-svrl.xsl \
+  -s:schemas/atom.sch \
+  -o:schemas/atom-compiled.xsl \
+  && java -jar tools/Saxon-HE-12.4.jar \
+  -xsl:schemas/atom-compiled.xsl \
+  -s:test/fixtures/sample-feed.xml
+#+end_src
+
+*** SVRL Output Format
+
+Schematron Validation Report Language (SVRL) output example:
+
+#+begin_src xml :eval no
+<svrl:schematron-output xmlns:svrl="http://purl.oclc.org/dml/svrl">
+  <!-- Errors -->
+  <svrl:failed-assert id="entry-content-or-alternate" role="error"
+                      location="/atom:feed/atom:entry[1]">
+    <svrl:text>[RFC 4287 4.1.2] Entry MUST contain either an atom:content
+    element or at least one atom:link element with rel="alternate".</svrl:text>
+  </svrl:failed-assert>
+
+  <!-- Warnings -->
+  <svrl:successful-report id="stale-feed-updated" role="warning"
+                          location="/atom:feed">
+    <svrl:text>[atom-validator :stale-feed-updated] Feed updated timestamp
+    is older than one or more entry updated timestamps.</svrl:text>
+  </svrl:successful-report>
+
+  <!-- Info -->
+  <svrl:successful-report id="entry-inherits-feed-author" role="info"
+                          location="/atom:feed/atom:entry[2]">
+    <svrl:text>Entry inherits author from feed.</svrl:text>
+  </svrl:successful-report>
+</svrl:schematron-output>
+#+end_src
+
+*** Combining with RelaxNG
+
+For complete validation, run both RelaxNG (structure) and Schematron (semantics):
+
+#+begin_src bash :eval no
+#!/bin/bash
+# validate-atom.sh - Complete Atom feed validation
+
+FEED="$1"
+ERRORS=0
+
+echo "=== Structural Validation (RelaxNG) ==="
+if ! xmllint --relaxng schemas/atom.rng "$FEED" --noout 2>&1; then
+  ERRORS=$((ERRORS + 1))
+fi
+
+echo ""
+echo "=== Semantic Validation (Schematron) ==="
+java -jar tools/Saxon-HE-12.4.jar \
+  -xsl:schemas/atom-compiled.xsl \
+  -s:"$FEED" 2>&1 | grep -E 'failed-assert|successful-report'
+
+if grep -q 'failed-assert.*role="error"' <<< "$(java -jar tools/Saxon-HE-12.4.jar \
+  -xsl:schemas/atom-compiled.xsl -s:"$FEED" 2>&1)"; then
+  ERRORS=$((ERRORS + 1))
+fi
+
+exit $ERRORS
+#+end_src
+
+*** Schematron vs atom-validator Clojure
+
+| Constraint | Schematron Rule | Clojure Error Code |
+|------------|-----------------|---------------------|
+| Entry content requirement | entry-content-or-alternate | :missing-required |
+| Author inheritance | entry-author-required | :missing-required |
+| Feed freshness | stale-feed-updated | :stale-feed-updated |
+| Link uniqueness | duplicate-link-combination | (not implemented) |
+| ID format | id-no-scheme | :invalid-url |
+| Date format | invalid-date-format | (not implemented) |
+
+The Schematron rules complement the Clojure validator by providing:
+- XML-native validation (no parsing into Clojure maps)
+- Integration with XML toolchains (CI/CD pipelines)
+- Language-agnostic validation
 
 * P3 Tools (Nice to Have)
 

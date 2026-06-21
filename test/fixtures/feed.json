@@ -1,0 +1,61 @@
+{
+    "version": "https://jsonfeed.org/version/1.1",
+    "title": "My Example Feed",
+    "home_page_url": "https://example.org/",
+    "feed_url": "https://example.org/feed.json",
+    "description": "A sample JSON Feed for testing the atom-validator library.",
+    "icon": "https://example.org/icon.png",
+    "favicon": "https://example.org/favicon.ico",
+    "authors": [
+        {
+            "name": "John Doe",
+            "url": "https://example.org/johndoe",
+            "avatar": "https://example.org/johndoe/avatar.png"
+        }
+    ],
+    "language": "en-US",
+    "items": [
+        {
+            "id": "3",
+            "url": "https://example.org/third-item",
+            "title": "Third Article",
+            "content_html": "<p>This is the <strong>third</strong> article.</p>",
+            "content_text": "This is the third article.",
+            "summary": "A brief summary of the third article.",
+            "image": "https://example.org/images/third.jpg",
+            "date_published": "2026-06-21T10:00:00Z",
+            "date_modified": "2026-06-21T12:30:00Z",
+            "authors": [
+                {
+                    "name": "Jane Smith"
+                }
+            ],
+            "tags": ["news", "update"],
+            "attachments": [
+                {
+                    "url": "https://example.org/audio/third.mp3",
+                    "mime_type": "audio/mpeg",
+                    "title": "Audio version",
+                    "size_in_bytes": 1234567,
+                    "duration_in_seconds": 300
+                }
+            ]
+        },
+        {
+            "id": "2",
+            "url": "https://example.org/second-item",
+            "title": "Second Article",
+            "content_html": "<p>This is the second article.</p>",
+            "date_published": "2026-06-20T10:00:00Z",
+            "tags": ["tutorial"]
+        },
+        {
+            "id": "1",
+            "url": "https://example.org/first-item",
+            "title": "First Article",
+            "content_text": "This is the first article, using plain text content.",
+            "date_published": "2026-06-19T10:00:00Z",
+            "external_url": "https://external-source.com/original"
+        }
+    ]
+}

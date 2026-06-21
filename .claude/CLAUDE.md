@@ -129,6 +129,35 @@ make release
 # Runs: check → validate-deploy → git tag → push tag → deploy → cljdoc trigger
 ```
 
+### Post-Publish Verification (ALL Clojure projects)
+
+After EVERY publish, the three sources MUST align:
+
+```bash
+VERSION="0.1.$(git rev-list --count HEAD)"
+
+# 1. GitHub releases
+gh release list --repo aygp-dr/atom-validator | head -5
+gh release view "v$VERSION"
+
+# 2. Clojars (POM must exist)
+curl -sf "https://repo.clojars.org/org/clojars/apace/atom-validator/$VERSION/atom-validator-$VERSION.pom" \
+  && echo "✓ Clojars" || echo "✗ Clojars MISSING"
+# Browser: https://clojars.org/org.clojars.apace/atom-validator/versions/$VERSION
+
+# 3. cljdoc (built and indexed)
+curl -sf "https://cljdoc.org/d/org.clojars.apace/atom-validator/$VERSION" \
+  && echo "✓ cljdoc" || echo "✗ cljdoc MISSING"
+```
+
+**Alignment contract**: GitHub release tag, Clojars version, and cljdoc version MUST be identical.
+If any source lags, trigger manually:
+- cljdoc: `curl -X POST "https://cljdoc.org/api/request-build2" -d "project=org.clojars.apace/atom-validator&version=$VERSION"`
+- Clojars: re-run `make deploy`
+- GitHub: `gh release create v$VERSION --notes-file ...`
+
+Use `make verify-publish` for automated Clojars check.
+
 ### Credentials
 
 ```bash

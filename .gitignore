@@ -37,5 +37,8 @@ nvd_suppressions.xml
 # Core dumps
 *.core
 
+# Claude scheduled task runtime locks
+.claude/scheduled_tasks.lock
+
 # Validation tools (download with: make tools)
 tools/*.jar

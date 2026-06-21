@@ -1,0 +1,85 @@
+#+TITLE: atom-validator 0.2.x Series Plan
+#+AUTHOR: aygp-dr
+#+DATE: 2026-06-21
+
+* Theme: Production CLI & Ecosystem Integration
+
+Move from library-only to a fully-integrated validation ecosystem with
+CLI tools, MCP server, HTTP fetching, and CI integrations.
+
+* Ownership
+
+| Owner | Responsibilities |
+|-------+------------------|
+| User + Claude | Deployment, validation, release process, E2E verification |
+| Agents | Feature implementation (CLI, MCP, HTTP, OPML, etc.) |
+
+* Features
+
+** 0.2.0 - CLI & HTTP Fetching
+
+| Feature | Priority | Owner | Status |
+|---------+----------+-------+--------|
+| Babashka CLI script | P1 | Agent | Pending |
+| HTTP feed fetching | P1 | Agent | Pending |
+| OPML batch import | P1 | Agent | Pending |
+| Exit codes for CI | P1 | Agent | Pending |
+| JSON output format | P2 | Agent | Pending |
+
+*** Babashka CLI
+
+#+begin_src bash
+bb atom-validate https://example.com/feed.atom
+bb atom-validate --format json feed.xml
+bb atom-validate --opml feeds.opml
+bb atom-validate --exit-code feed.xml  # 0=valid, 1=invalid, 2=error
+#+end_src
+
+** 0.2.1 - MCP Server
+
+| Feature | Priority | Owner | Status |
+|---------+----------+-------+--------|
+| MCP server | P1 | Agent | Pending |
+| Claude Code integration | P1 | Agent | Pending |
+| Tool: validate_feed | P1 | Agent | Pending |
+| Tool: parse_feed | P2 | Agent | Pending |
+| Tool: list_errors | P2 | Agent | Pending |
+
+** 0.2.2 - GraalVM Native Binary
+
+| Feature | Priority | Owner | Status |
+|---------+----------+-------+--------|
+| GraalVM native-image | P1 | Agent | Pending |
+| Reflection config | P1 | Agent | Pending |
+| Multi-platform builds | P2 | Agent | Pending |
+| Homebrew formula | P3 | Agent | Pending |
+
+** 0.2.3 - GitHub Action
+
+| Feature | Priority | Owner | Status |
+|---------+----------+-------+--------|
+| Reusable GH Action | P1 | Agent | Pending |
+| action.yml | P1 | Agent | Pending |
+| Marketplace listing | P2 | User | Pending |
+| Example workflows | P2 | Agent | Pending |
+
+* Validation & Deployment (User + Claude)
+
+Each milestone requires:
+
+1. =make check= - all tests pass
+2. =make security= - lint + nvd
+3. =bin/validate-deploy= - JAR audit
+4. =make verify-publish= - E2E Clojars check
+5. =git-cliff= - changelog generation
+6. =gh release create= - tagged release with notes
+7. cljdoc trigger - documentation rebuild
+
+* Success Criteria
+
+- [ ] CLI usable from shell scripts (exit codes, JSON output)
+- [ ] Babashka one-liner: =bb -e "(require '[atom-validator.core :as v]) ..."=
+- [ ] MCP tool callable from Claude Code
+- [ ] Native binary <20MB, starts <100ms
+- [ ] GitHub Action published to marketplace
+- [ ] E2E publish verification on every release

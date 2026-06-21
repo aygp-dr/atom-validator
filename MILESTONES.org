@@ -1,0 +1,124 @@
+#+TITLE: atom-validator Milestones
+#+AUTHOR: aygp-dr
+#+DATE: 2026-06-21
+
+* Overview
+
+Milestones based on research of RSS/Atom ecosystem and competitive analysis.
+
+* M1: Core Validation (DONE)
+
+| Feature | Status | Notes |
+|---------+--------+-------|
+| RFC 4287 structural validation | ✓ | rules.clj |
+| Day-of-week semantic check | ✓ | semantic.clj, Issue #1 |
+| Feed freshness check | ✓ | :stale-feed-updated, Issue #2 |
+| URL/TLD validation | ✓ | url.clj, Issue #3 |
+| Property-based testing | ✓ | 6 defspecs, generators.clj |
+| RelaxNG schema | ✓ | schemas/atom.rnc |
+
+* M2: Tooling & CI (DONE)
+
+| Feature | Status | Notes |
+|---------+--------+-------|
+| clj-kondo linting | ✓ | make lint |
+| JAR build | ✓ | make jar |
+| Clojars deploy | ✓ | make deploy |
+| cljdoc integration | ✓ | doc/*.md |
+| XML validation tools | ✓ | jing, trang, xmllint |
+| Test fixtures | ✓ | test/fixtures/*.xml |
+
+* M3: Enhanced Validation (P1)
+
+Features that no other library provides:
+
+| Feature | Priority | Complexity | Notes |
+|---------+----------+------------+-------|
+| Schematron rules | P1 | Medium | Cross-element validation |
+| RSS 2.0 support | P1 | Medium | Extend parser.clj |
+| JSON Feed support | P2 | Low | jsonfeed.org spec |
+| Feed autodiscovery | P2 | Low | HTML link rel="alternate" |
+| Batch validation | P2 | Low | Validate directory of feeds |
+
+** Schematron Rules
+
+Express constraints RelaxNG cannot:
+
+#+begin_src xml
+<sch:rule context="atom:entry">
+  <sch:assert test="atom:content or atom:link[@rel='alternate']">
+    Entry must have content or alternate link
+  </sch:assert>
+</sch:rule>
+#+end_src
+
+** RSS 2.0 Support
+
+| RSS Element | Atom Equivalent | Validation |
+|-------------+-----------------+------------|
+| channel | feed | Required elements |
+| item | entry | pubDate format |
+| enclosure | link[@rel='enclosure'] | URL + type |
+| guid | id | Uniqueness |
+
+* M4: CLI & Integration (P2)
+
+| Feature | Priority | Notes |
+|---------+----------+-------|
+| Standalone CLI | P2 | Native binary via GraalVM |
+| Babashka script | ✓ | examples/validate-feed.bb |
+| OPML import | P3 | Batch validate feed list |
+| CI action | P3 | GitHub Action for feed validation |
+| MCP server | P3 | Claude Code integration |
+
+* M5: Advanced Features (P3)
+
+| Feature | Priority | Notes |
+|---------+----------+-------|
+| Feed diff | P3 | Compare feed versions |
+| Content extraction | P3 | Clean HTML from entries |
+| Feed repair | P3 | Auto-fix common issues |
+| Statistics | P3 | Post frequency, update patterns |
+| Archive validation | P3 | Wayback Machine integration |
+
+* Competitive Positioning
+
+What atom-validator provides that others don't:
+
+| Feature | feedparser | ROME | gofeed | atom-validator |
+|---------+------------+------+--------+----------------|
+| Parse | ✓ | ✓ | ✓ | ✓ |
+| Generate | | ✓ | | |
+| Structural validation | | partial | | ✓ |
+| Semantic validation | | | | ✓ |
+| Day-of-week check | | | | ✓ |
+| URL typo detection | | | | ✓ |
+| Property-based tests | | | | ✓ |
+| RelaxNG schema | | | | ✓ |
+
+* Testing Matrix
+
+| Layer | Tool | What it catches |
+|-------+------+-----------------|
+| 1. Well-formed | xmllint | XML syntax errors |
+| 2. Schema | jing + atom.rng | Missing required elements |
+| 3. Schematron | (M3) | Cross-element constraints |
+| 4. Semantic | atom-validator | Business logic, dates, URLs |
+
+* FreeBSD CI Environment
+
+Available for sandboxed testing:
+
+| Tool | Use Case |
+|------+----------|
+| bastille | Jail-based isolation |
+| podman | OCI container testing |
+| pf | Network isolation |
+| poudriere | Package build testing |
+
+#+begin_src bash
+# Sandboxed publish test
+sudo bastille start agent-aygp-dr
+sudo bastille cp agent-aygp-dr /path/to/project /usr/home/
+sudo bastille cmd agent-aygp-dr "cd /usr/home/project && make check"
+#+end_src

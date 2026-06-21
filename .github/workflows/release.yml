@@ -1,17 +1,35 @@
-name: Release to Clojars
+name: Release
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      create_tag:
+        description: 'Create tag from current commit count'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
-  deploy:
+  release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
       - name: Setup Clojure
         uses: DeLaGuardo/setup-clojure@12.5
@@ -27,14 +45,60 @@ jobs:
             ~/.clojure/.cpcache
           key: ${{ runner.os }}-clojure-${{ hashFiles('deps.edn') }}
 
+      - name: Compute version
+        id: version
+        run: |
+          VERSION="0.1.$(git rev-list --count HEAD)"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Run tests
+        run: clojure -X:test
+
+      - name: Lint
+        run: clojure -M:lint
+
+      - name: Create tag (manual dispatch)
+        if: github.event_name == 'workflow_dispatch' && inputs.create_tag == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Build JAR
+        run: clojure -T:build jar
+
+      - name: Audit JAR for secrets
+        run: bin/validate-deploy
+
       - name: Deploy to Clojars
         env:
           CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
           CLOJARS_PASSWORD: ${{ secrets.CLOJARS_DEPLOY_TOKEN }}
         run: clojure -T:build deploy
 
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Extract section between [VERSION] and next [
+          awk "/^## \[$VERSION\]/,/^## \[/" CHANGELOG.md | \
+            sed '$d' > release-notes.md || echo "No changelog entry for $VERSION" > release-notes.md
+          cat release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body_path: release-notes.md
           files: target/*.jar
-          generate_release_notes: true
+          generate_release_notes: false
+
+      - name: Trigger cljdoc build
+        run: |
+          curl -sX POST "https://cljdoc.org/api/request-build2" \
+            -d "project=org.clojars.apace/atom-validator&version=${{ steps.version.outputs.version }}" \
+            || echo "cljdoc trigger failed (non-fatal)"

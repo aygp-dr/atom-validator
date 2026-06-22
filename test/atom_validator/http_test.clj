@@ -6,7 +6,7 @@
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
            [java.net InetSocketAddress]
            [java.io OutputStream]
-           [java.util.concurrent Executors]))
+           [java.util.concurrent Executors ThreadFactory]))
 
 ;; =============================================================================
 ;; In-process HTTP mock server
@@ -74,27 +74,42 @@
           (write-response exchange 500 "text/plain"
                           (str "Server error: " (.getMessage t))))))))
 
+(defn- daemon-thread-factory
+  "ThreadFactory producing daemon threads so the mock server never blocks JVM
+  exit. HttpServer.stop does NOT shut down a user-supplied executor, so without
+  this the non-daemon worker thread lingers and hangs `clj -X:test`."
+  [name]
+  (reify ThreadFactory
+    (newThread [_ runnable]
+      (doto (Thread. runnable ^String name)
+        (.setDaemon true)))))
+
 (defn- start-server!
-  "Start an HTTP server on an ephemeral port. Returns [server handlers-atom port]."
+  "Start an HTTP server on an ephemeral port.
+  Returns [server handlers-atom port executor]."
   []
   (let [handlers-atom (atom {})
-        server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)]
+        server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)
+        executor (Executors/newSingleThreadExecutor
+                  (daemon-thread-factory "mock-http-server"))]
     (.createContext server "/" (make-handler handlers-atom))
-    (.setExecutor server (Executors/newSingleThreadExecutor))
+    (.setExecutor server executor)
     (.start server)
-    [server handlers-atom (.getPort (.getAddress server))]))
+    [server handlers-atom (.getPort (.getAddress server)) executor]))
 
 (defn with-server
   "Fixture: start a fresh mock HTTP server for each test."
   [f]
-  (let [[server handlers-atom port] (start-server!)]
+  (let [[server handlers-atom port executor] (start-server!)]
     (try
       (binding [*server* server
                 *handlers* handlers-atom
                 *base-url* (str "http://127.0.0.1:" port)]
         (f))
       (finally
-        (.stop server 0)))))
+        (.stop server 0)
+        ;; stop does not touch the executor; shut it down explicitly.
+        (.shutdownNow ^java.util.concurrent.ExecutorService executor)))))
 
 (use-fixtures :each with-server)
 

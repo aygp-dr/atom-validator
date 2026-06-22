@@ -51,7 +51,11 @@ jobs:
           key: ${{ runner.os }}-clojure-${{ hashFiles('deps.edn') }}
 
       - name: Run unit tests
-        run: clojure -X:test
+        # -M (not -X): cognitect runner's -main calls (System/exit), so the JVM
+        # terminates after tests report. -X returns a value and lets the JVM try
+        # to exit normally, where java.net.http's non-daemon SelectorManager
+        # thread (held by the shared HttpClient) blocks exit and hangs CI.
+        run: clojure -M:test
 
       - name: Run coverage
         run: clojure -M:coverage

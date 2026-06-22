@@ -24,7 +24,8 @@
                           HttpResponse$BodyHandlers
                           HttpTimeoutException]
            [java.time Duration]
-           [java.io IOException]))
+           [java.io IOException]
+           [java.util.concurrent Executors ThreadFactory]))
 
 ;; =============================================================================
 ;; Constants
@@ -86,19 +87,38 @@
    (when-let [normalized (normalize-content-type content-type)]
      (contains? feed-content-types normalized))))
 
-(def ^:private shared-client
-  "Single shared HttpClient. java.net.http.HttpClient spawns non-daemon
-  selector threads that keep the JVM alive after tests finish. Creating one
-  per request hangs CI for ~30 minutes after tests pass. Sharing a single
-  client across all calls keeps the thread count bounded.
+(def ^:private daemon-executor
+  "Cached thread pool whose threads are daemons. By default
+  java.net.http.HttpClient spawns its selector/worker threads as NON-daemon
+  threads, which keep the JVM alive after the last request -- the JVM only
+  exits once all non-daemon threads die. Under `clj -X:test` the cognitect
+  runner returns without calling System/exit, so those lingering threads hang
+  the process (CI was cancelled at the 10-minute cap). Supplying an executor
+  with daemon threads makes the client's threads non-blocking for JVM exit."
+  (delay
+    (Executors/newCachedThreadPool
+     (reify ThreadFactory
+       (newThread [_ runnable]
+         (doto (Thread. runnable "atom-validator-http")
+           (.setDaemon true)))))))
 
-  We disable automatic redirect handling so we can count redirects manually
+(def ^:private shared-client
+  "Single shared HttpClient reused across all requests.
+
+  Two reasons for one shared instance built on a daemon executor:
+  - Creating a client per request leaks selector/worker threads; sharing one
+    keeps the thread count bounded.
+  - The daemon executor (see daemon-executor) ensures those threads never
+    block JVM exit, so callers under `clj -X:test` or a plain script don't hang.
+
+  Automatic redirect handling is disabled so we can count redirects manually
   and enforce max-redirects."
   (delay
     (-> (HttpClient/newBuilder)
         (.followRedirects HttpClient$Redirect/NEVER)
         (.connectTimeout (Duration/ofSeconds default-timeout-seconds))
         (.version HttpClient$Version/HTTP_2)
+        (.executor @daemon-executor)
         (.build))))
 
 (defn- build-client

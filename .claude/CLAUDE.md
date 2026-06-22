@@ -25,6 +25,7 @@ make release    # Full release: check, tag, deploy, docs
 | `:invalid-url` | #3 | URL parsing failed |
 | `:invalid-url-scheme` | #3 | Scheme MUST be http/https |
 | `:missing-required` | RFC | Required elements per RFC 4287 |
+| `:invalid-xml` | parse | Content is not well-formed XML / not a parseable feed (e.g. an HTML error page); `validate-feed` returns this instead of throwing |
 
 ### Return Value Contract
 

@@ -327,20 +327,20 @@
 
 (deftest core-validate-feed-fetch-disabled
   (testing "When :fetch? false, URL string is NOT auto-fetched"
-    ;; With :fetch? false the URL string is treated as raw content. Because it
-    ;; is not valid XML/JSON, parsing throws -- but importantly, no HTTP call
-    ;; is made (the network would fail because we never start a server here).
+    ;; With :fetch? false the URL string is treated as raw content. It is not
+    ;; valid XML/JSON, so validation returns an :invalid-xml error -- and
+    ;; crucially carries NO :http key, proving no network call was made (the
+    ;; registered handler must never run).
     (register! "/should-not-be-called"
                (fn [exchange _method]
                  (write-response exchange 200 "application/atom+xml" sample-atom-feed)))
-    (let [thrown? (try
-                    (v/validate-feed (str *base-url* "/should-not-be-called")
-                                     {:fetch? false})
-                    false
-                    (catch Exception _ true))]
-      ;; Either the URL string parses as bad XML (throws) or returns a
-      ;; non-:http result. Either way we did not contact the network.
-      (is thrown? "URL string with :fetch? false should be treated as raw content"))))
+    (let [result (v/validate-feed (str *base-url* "/should-not-be-called")
+                                  {:fetch? false})]
+      (is (not (:valid? result)))
+      (is (some #(= :invalid-xml (:code %)) (:errors result))
+          "URL string with :fetch? false is parsed as raw content, not fetched")
+      (is (not (contains? result :http))
+          "No HTTP metadata: the network was never contacted"))))
 
 (deftest core-validate-feed-string-unchanged
   (testing "Raw XML string still validates without HTTP (backwards compatible)"

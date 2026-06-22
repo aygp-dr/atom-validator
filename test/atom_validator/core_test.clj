@@ -137,6 +137,17 @@
       (is (not (:valid? (v/validate-feed feed)))
           "Empty feed should be invalid"))))
 
+(deftest invalid-xml-does-not-throw
+  (testing "Malformed/non-feed content returns :invalid-xml instead of throwing"
+    (let [result (v/validate-feed "not xml at all <<<>>>")]
+      (is (not (:valid? result)))
+      (is (some #(= :invalid-xml (:code %)) (:errors result))
+          "Garbage input should yield an :invalid-xml error")))
+  (testing "An HTML error page (e.g. a bot wall) does not throw"
+    (let [result (v/validate-feed "<html><head><title>Just a moment...</title>&</head>")]
+      (is (not (:valid? result))
+          "Should degrade to a validation result, not an exception"))))
+
 (deftest minimal-valid-feed
   (testing "Minimal valid feed"
     (let [feed {:id "urn:uuid:feed-1"

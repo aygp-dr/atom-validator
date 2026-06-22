@@ -107,6 +107,29 @@
    (let [result (jsonfeed/validate-json-feed feed opts)]
      (update result :feed assoc :format :json-feed))))
 
+(defn- guard-parse
+  "Run a validation thunk that parses feed content, converting a parse failure
+  (malformed/non-feed input, e.g. an HTML error page) into a normal validation
+  result with an :invalid-xml error instead of letting the exception escape.
+  Keeps the public validate-feed API from throwing on garbage input."
+  [thunk]
+  (try
+    (thunk)
+    (catch javax.xml.stream.XMLStreamException e
+      {:valid? false
+       :warnings []
+       :errors [{:type :error
+                 :code :invalid-xml
+                 :message (str "Feed is not well-formed XML: " (.getMessage e))
+                 :path []}]})
+    (catch Exception e
+      {:valid? false
+       :warnings []
+       :errors [{:type :error
+                 :code :invalid-xml
+                 :message (str "Could not parse feed: " (.getMessage e))
+                 :path []}]})))
+
 (defn validate-feed
   "Validate a feed (Atom, RSS, or JSON Feed). Auto-detects format from content.
    Returns {:valid? bool :errors [...] :warnings [...] :feed map}.
@@ -165,24 +188,25 @@
 
      ;; Force format specified
      (= format :rss)
-     (rss/validate-rss-feed feed opts)
+     (guard-parse #(rss/validate-rss-feed feed opts))
 
      (= format :atom)
-     (validate-atom-feed feed opts)
+     (guard-parse #(validate-atom-feed feed opts))
 
      (= format :json-feed)
-     (validate-json-feed feed opts)
+     (guard-parse #(validate-json-feed feed opts))
 
      ;; Auto-detect from content
      :else
-     (let [source-str (source-to-string feed)
-           detected-format (detect-feed-format source-str)]
-       (case detected-format
-         :rss (rss/validate-rss-feed source-str opts)
-         :atom (validate-atom-feed source-str opts)
-         :json-feed (validate-json-feed source-str opts)
-         ;; Unknown format - try Atom, it will produce validation errors
-         (validate-atom-feed source-str opts))))))
+     (guard-parse
+      #(let [source-str (source-to-string feed)
+             detected-format (detect-feed-format source-str)]
+         (case detected-format
+           :rss (rss/validate-rss-feed source-str opts)
+           :atom (validate-atom-feed source-str opts)
+           :json-feed (validate-json-feed source-str opts)
+           ;; Unknown format - try Atom, it will produce validation errors
+           (validate-atom-feed source-str opts)))))))
 
 (defn validate-entry
   "Validate a single Atom entry. Returns {:valid? bool :errors [...] :warnings [...]}.

@@ -25,7 +25,8 @@ make release    # Full release: check, tag, deploy, docs
 | `:invalid-url` | #3 | URL parsing failed |
 | `:invalid-url-scheme` | #3 | Scheme MUST be http/https |
 | `:missing-required` | RFC | Required elements per RFC 4287 |
-| `:invalid-xml` | parse | Content is not well-formed XML / not a parseable feed (e.g. an HTML error page); `validate-feed` returns this instead of throwing |
+| `:invalid-xml` | parse | Content is not well-formed XML (XMLStreamException, e.g. an HTML error page); `validate-feed` returns this instead of throwing |
+| `:invalid-json` | parse | Content is not parseable JSON-Feed input (data.json/read-str threw); `validate-feed` returns this instead of throwing. Distinguished from `:invalid-xml` so JSON garbage is not mislabeled as an XML problem |
 
 ### Return Value Contract
 

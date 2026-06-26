@@ -110,8 +110,13 @@
 (defn- guard-parse
   "Run a validation thunk that parses feed content, converting a parse failure
   (malformed/non-feed input, e.g. an HTML error page) into a normal validation
-  result with an :invalid-xml error instead of letting the exception escape.
-  Keeps the public validate-feed API from throwing on garbage input."
+  result instead of letting the exception escape. Keeps the public validate-feed
+  API from throwing on garbage input.
+
+  The error :code is parser-aware: an XML stream failure yields :invalid-xml,
+  while any other parse failure (e.g. malformed JSON-Feed input, where
+  data.json/read-str throws) yields :invalid-json. Tagging every failure
+  :invalid-xml mislabels JSON-Feed garbage as an XML problem."
   [thunk]
   (try
     (thunk)
@@ -126,7 +131,7 @@
       {:valid? false
        :warnings []
        :errors [{:type :error
-                 :code :invalid-xml
+                 :code :invalid-json
                  :message (str "Could not parse feed: " (.getMessage e))
                  :path []}]})))
 

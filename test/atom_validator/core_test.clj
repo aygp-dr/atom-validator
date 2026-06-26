@@ -148,6 +148,15 @@
       (is (not (:valid? result))
           "Should degrade to a validation result, not an exception"))))
 
+(deftest malformed-json-feed-is-not-invalid-xml
+  (testing "Malformed JSON-Feed input reports a JSON parse error, not :invalid-xml"
+    (let [result (v/validate-feed "{not json" {:format :json-feed})]
+      (is (not (:valid? result)))
+      (is (some #(= :invalid-json (:code %)) (:errors result))
+          "Broken JSON should yield an :invalid-json error")
+      (is (not-any? #(= :invalid-xml (:code %)) (:errors result))
+          "JSON-Feed garbage must not be mislabeled :invalid-xml"))))
+
 (deftest minimal-valid-feed
   (testing "Minimal valid feed"
     (let [feed {:id "urn:uuid:feed-1"

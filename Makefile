@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security tools changelog verify-publish cli-test
+.PHONY: help clean deps test repl jar install deploy release outdated lint storm check ci coverage nvd security tools changelog verify-publish cli-test
 
 CLOJARS_USER := apace
 
@@ -20,6 +20,7 @@ help:
 	@echo "  make verify-publish - E2E verify JAR on Clojars (requires release)"
 	@echo ""
 	@echo "Build:"
+	@echo "  make deps       - Resolve deps (download-only, no run)"
 	@echo "  make clean      - Remove build artifacts"
 	@echo "  make jar        - Build JAR file"
 	@echo "  make install    - Install to local Maven repo"
@@ -33,6 +34,11 @@ help:
 
 clean:
 	clj -T:build clean
+
+# Resolve (download-only) the deps the test suite needs, warming the CI cache
+# without running anything. Mirrors the org build-interface standard.
+deps:
+	clojure -P -M:test
 
 test:
 	clj -X:test
@@ -112,7 +118,9 @@ ci: lint test coverage jar
 jar:
 	clj -T:build jar
 
-install:
+# Build genuinely installs an artifact to the local Maven repo, so deps is a
+# prerequisite (resolve first) rather than install being a mere alias for it.
+install: deps
 	clj -T:build install
 
 # Deploy to Clojars using pass for credentials

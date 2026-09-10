@@ -13,7 +13,9 @@
   - :invalid-content-type   - response Content-Type is not a known feed MIME type
   - :max-redirects-exceeded - redirect chain longer than max-redirects
   - :invalid-url            - URL could not be parsed"
-  (:require [clojure.string :as str])
+  (:require [atom-validator.specs :as specs]
+            [clojure.spec.alpha :as s]
+            [clojure.string :as str])
   (:import [java.net URI]
            [java.net.http HttpClient
             HttpClient$Redirect
@@ -86,6 +88,10 @@
   (boolean
    (when-let [normalized (normalize-content-type content-type)]
      (contains? feed-content-types normalized))))
+
+(s/fdef valid-feed-content-type?
+  :args (s/cat :content-type (s/nilable ::specs/content-type))
+  :ret boolean?)
 
 (def ^:private daemon-executor
   "Cached thread pool whose threads are daemons. By default
@@ -314,12 +320,22 @@
       :errors [(error :invalid-url
                       (format "Cannot parse URL '%s' (must be absolute http/https)" url))]})))
 
+(s/fdef fetch-feed
+  :args (s/cat :url (s/nilable string?) :opts (s/? ::specs/validate-opts))
+  :ret ::specs/fetch-result)
+
 (defn url?
   "Returns true if s looks like an http/https URL."
   [s]
   (and (string? s)
        (or (str/starts-with? s "http://")
            (str/starts-with? s "https://"))))
+
+(s/fdef url?
+  :args (s/cat :s any?)
+  :ret boolean?
+  :fn (fn [{{:keys [s]} :args ret :ret}]
+        (or (not ret) (string? s))))
 
 (defn fetch-and-validate
   "Convenience wrapper: fetch a feed by URL, then validate it.
@@ -351,3 +367,8 @@
         :errors (:errors fetch-result)
         :warnings []
         :http http-meta}))))
+
+(s/fdef fetch-and-validate
+  :args (s/cat :url (s/nilable string?) :opts (s/? ::specs/validate-opts))
+  :ret ::specs/result
+  :fn specs/result-consistent?)

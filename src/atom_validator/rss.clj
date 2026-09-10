@@ -4,7 +4,9 @@
    - Required channel elements (title, link, description)
    - Optional channel elements (language, pubDate, lastBuildDate, generator)
    - Item elements (title OR description required, link, pubDate, guid, enclosure, category)"
-  (:require [clojure.data.xml :as xml]
+  (:require [atom-validator.specs :as specs]
+            [clojure.data.xml :as xml]
+            [clojure.spec.alpha :as s]
             [clojure.string :as str])
   (:import [java.io StringReader]
            [java.text SimpleDateFormat ParseException]
@@ -35,6 +37,10 @@
                   (.parse sdf trimmed))
                 (catch ParseException _ nil)))
             rfc822-formats))))
+
+(s/fdef parse-rfc822
+  :args (s/cat :s (s/nilable ::specs/rfc822-string))
+  :ret (s/nilable inst?))
 
 ;; =============================================================================
 ;; XML Parsing Helpers (similar to parser.clj style)
@@ -91,6 +97,10 @@
    :comments (text-content (find-child item-el "comments"))
    :source (text-content (find-child item-el "source"))})
 
+(s/fdef parse-item
+  :args (s/cat :item-el ::specs/xml-element)
+  :ret ::specs/rss-item)
+
 ;; =============================================================================
 ;; RSS Channel/Feed Parsing
 ;; =============================================================================
@@ -121,6 +131,10 @@
      :categories (mapv text-content (find-children channel "category"))
      :items (mapv parse-item (find-children channel "item"))}))
 
+(s/fdef parse-rss-feed
+  :args (s/cat :source ::specs/rss-source)
+  :ret ::specs/parsed-rss-feed)
+
 ;; =============================================================================
 ;; Error/Warning Constructors (matching rules.clj style)
 ;; =============================================================================
@@ -145,17 +159,29 @@
   (when (or (nil? (:title feed)) (str/blank? (:title feed)))
     [(error :missing-channel-title "Channel must contain a title element")]))
 
+(s/fdef validate-channel-title
+  :args ::specs/rss-channel-args
+  :ret ::specs/issues)
+
 (defn validate-channel-link
   "Channel MUST have a link element."
   [feed]
   (when (or (nil? (:link feed)) (str/blank? (:link feed)))
     [(error :missing-channel-link "Channel must contain a link element")]))
 
+(s/fdef validate-channel-link
+  :args ::specs/rss-channel-args
+  :ret ::specs/issues)
+
 (defn validate-channel-description
   "Channel MUST have a description element."
   [feed]
   (when (or (nil? (:description feed)) (str/blank? (:description feed)))
     [(error :missing-channel-description "Channel must contain a description element")]))
+
+(s/fdef validate-channel-description
+  :args ::specs/rss-channel-args
+  :ret ::specs/issues)
 
 (defn validate-channel-pubdate
   "Channel pubDate must be valid RFC 822 format if present."
@@ -167,6 +193,10 @@
               (str "Channel pubDate must be valid RFC 822 datetime: " pub-date)
               [:pub-date])])))
 
+(s/fdef validate-channel-pubdate
+  :args ::specs/rss-channel-args
+  :ret ::specs/issues)
+
 (defn validate-channel-last-build-date
   "Channel lastBuildDate must be valid RFC 822 format if present."
   [feed]
@@ -176,6 +206,10 @@
       [(error :invalid-pubdate
               (str "Channel lastBuildDate must be valid RFC 822 datetime: " last-build)
               [:last-build-date])])))
+
+(s/fdef validate-channel-last-build-date
+  :args ::specs/rss-channel-args
+  :ret ::specs/issues)
 
 ;; =============================================================================
 ;; Item-level Validation
@@ -191,6 +225,11 @@
               "Item must contain at least a title or description element"
               [:items idx])])))
 
+(s/fdef validate-item-content
+  :args ::specs/rss-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
+
 (defn validate-item-pubdate
   "Item pubDate must be valid RFC 822 format if present."
   [item idx]
@@ -200,6 +239,11 @@
       [(error :invalid-pubdate
               (str "Item pubDate must be valid RFC 822 datetime: " pub-date)
               [:items idx :pub-date])])))
+
+(s/fdef validate-item-pubdate
+  :args ::specs/rss-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
 
 (defn validate-item-guid
   "Item guid should be unique within the feed.
@@ -211,6 +255,11 @@
               "Item guid must not be empty if present"
               [:items idx :guid])])))
 
+(s/fdef validate-item-guid
+  :args ::specs/rss-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
+
 (defn validate-item
   "Validate a single RSS item. Returns a sequence of errors/warnings."
   [item idx]
@@ -218,6 +267,11 @@
    (validate-item-content item idx)
    (validate-item-pubdate item idx)
    (validate-item-guid item idx)))
+
+(s/fdef validate-item
+  :args ::specs/rss-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
 
 ;; =============================================================================
 ;; Feed-level Validation
@@ -235,6 +289,13 @@
                      (str "Duplicate guid found: " dup-guid)))
           dup-guids)))
 
+(s/fdef validate-guid-uniqueness
+  :args ::specs/rss-channel-args
+  :ret (s/coll-of ::specs/warning :kind vector?)
+  ;; each duplicated guid needs at least two items
+  :fn (fn [{{:keys [feed]} :args ret :ret}]
+        (<= (* 2 (count ret)) (count (:items feed)))))
+
 (defn validate-rss-structure
   "Validate RSS feed structure. Returns {:errors [...] :warnings [...]}."
   [feed]
@@ -251,6 +312,10 @@
     {:errors (vec (filter #(= :error (:type %)) (concat channel-issues item-issues)))
      :warnings (vec (filter #(= :warning (:type %)) (concat channel-issues item-issues)))}))
 
+(s/fdef validate-rss-structure
+  :args ::specs/rss-channel-args
+  :ret ::specs/issue-buckets)
+
 ;; =============================================================================
 ;; URL Validation for RSS
 ;; =============================================================================
@@ -262,6 +327,10 @@
   ;; For now, return empty - URL validation can be added later
   ;; using the existing atom-validator.url namespace
   {:errors [] :warnings []})
+
+(s/fdef validate-rss-urls
+  :args ::specs/rss-channel-args
+  :ret ::specs/issue-buckets)
 
 ;; =============================================================================
 ;; Combined RSS Validation
@@ -291,3 +360,9 @@
       :errors (:errors combined)
       :warnings (:warnings combined)
       :feed parsed})))
+
+(s/fdef validate-rss-feed
+  :args (s/cat :feed (s/or :map ::specs/rss-feed :source ::specs/rss-source)
+               :opts (s/? ::specs/validate-opts))
+  :ret ::specs/feed-result
+  :fn specs/result-consistent?)

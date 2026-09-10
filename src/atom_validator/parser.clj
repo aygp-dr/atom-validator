@@ -1,6 +1,8 @@
 (ns atom-validator.parser
   "XML parsing for Atom feeds using clojure.data.xml."
-  (:require [clojure.data.xml :as xml]
+  (:require [atom-validator.specs :as specs]
+            [clojure.data.xml :as xml]
+            [clojure.spec.alpha :as s]
             [clojure.string :as str])
   (:import [java.io StringReader]))
 
@@ -80,6 +82,10 @@
    :rights (text-content (find-child entry-el "rights"))
    :source (find-child entry-el "source")})
 
+(s/fdef parse-entry
+  :args (s/cat :entry-el ::specs/xml-element)
+  :ret ::specs/parsed-entry)
+
 (defn parse-feed
   "Parse an Atom feed from XML string or input stream.
    Returns a map with :id, :title, :updated, :entries, etc."
@@ -101,3 +107,7 @@
      :links (mapv parse-link (find-children root "link"))
      :categories (mapv parse-category (find-children root "category"))
      :entries (mapv parse-entry (find-children root "entry"))}))
+
+(s/fdef parse-feed
+  :args (s/cat :source ::specs/atom-source)
+  :ret ::specs/atom-parse)

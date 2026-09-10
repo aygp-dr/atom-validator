@@ -1,7 +1,12 @@
 (ns atom-validator.opml-test
-  (:require [clojure.test :refer [deftest testing is]]
+  (:require [clojure.spec.test.alpha :as stest]
+            [clojure.test :refer [deftest testing is use-fixtures]]
             [clojure.java.io :as io]
             [atom-validator.opml :as opml]))
+
+;; Exercise every s/fdef :args spec while the unit tests run.
+(use-fixtures :once
+  (fn [f] (stest/instrument) (try (f) (finally (stest/unstrument)))))
 
 ;; =============================================================================
 ;; Fixtures

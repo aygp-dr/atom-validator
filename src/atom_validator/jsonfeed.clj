@@ -6,8 +6,10 @@
    - Item requirements (id, content_html or content_text)
    - Valid date formats (ISO 8601/RFC 3339)
    - URL validity (home_page_url, feed_url, item url)"
-  (:require [atom-validator.url :as url]
+  (:require [atom-validator.specs :as specs]
+            [atom-validator.url :as url]
             [clojure.data.json :as json]
+            [clojure.spec.alpha :as s]
             [clojure.string :as str]))
 
 ;; Valid JSON Feed version URLs
@@ -40,6 +42,12 @@
     (string? source) (json/read-str source :key-fn keyword)
     :else (json/read source :key-fn keyword)))
 
+(s/fdef parse-json-feed
+  :args (s/cat :source ::specs/json-source)
+  :ret map?
+  :fn (fn [{{[tag source] :source} :args ret :ret}]
+        (or (not= :map tag) (= source ret))))
+
 ;; Date validation
 
 (defn valid-iso8601?
@@ -47,6 +55,10 @@
   [s]
   (when (and s (string? s) (not (str/blank? s)))
     (boolean (re-matches iso8601-pattern s))))
+
+(s/fdef valid-iso8601?
+  :args (s/cat :s (s/nilable ::specs/date-string))
+  :ret (s/nilable boolean?))
 
 ;; Feed-level validation
 
@@ -64,11 +76,19 @@
 
       :else [])))
 
+(s/fdef validate-version
+  :args ::specs/json-feed-args
+  :ret ::specs/issues)
+
 (defn validate-feed-title
   "Feed MUST have a title field."
   [feed]
   (when (or (nil? (:title feed)) (str/blank? (:title feed)))
     [(error :missing-title "Feed must contain a title field")]))
+
+(s/fdef validate-feed-title
+  :args ::specs/json-feed-args
+  :ret ::specs/issues)
 
 (defn validate-feed-items
   "Feed MUST have an items array."
@@ -82,6 +102,10 @@
 
     :else []))
 
+(s/fdef validate-feed-items
+  :args ::specs/json-feed-args
+  :ret ::specs/issues)
+
 (defn validate-feed-urls
   "Validate optional feed-level URLs."
   [feed]
@@ -93,6 +117,10 @@
      (check-url :home_page_url [:home_page_url])
      (check-url :feed_url [:feed_url]))))
 
+(s/fdef validate-feed-urls
+  :args ::specs/json-feed-args
+  :ret ::specs/issues)
+
 (defn validate-feed-authors
   "Validate authors array if present."
   [feed]
@@ -102,6 +130,10 @@
       [(warning :author-missing-name
                 "Author objects should have a name field")])))
 
+(s/fdef validate-feed-authors
+  :args ::specs/json-feed-args
+  :ret ::specs/issues)
+
 ;; Item-level validation
 
 (defn validate-item-id
@@ -110,6 +142,11 @@
   (when (or (nil? (:id item)) (str/blank? (str (:id item))))
     [(error :missing-item-id "Item must contain an id field"
             [:items idx :id])]))
+
+(s/fdef validate-item-id
+  :args ::specs/json-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
 
 (defn validate-item-content
   "Each item MUST have content_html or content_text."
@@ -122,6 +159,11 @@
       [(error :missing-item-content
               "Item must contain content_html or content_text"
               [:items idx])])))
+
+(s/fdef validate-item-content
+  :args ::specs/json-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
 
 (defn validate-item-dates
   "Validate optional date_published and date_modified fields."
@@ -136,6 +178,11 @@
      (check-date :date_published)
      (check-date :date_modified))))
 
+(s/fdef validate-item-dates
+  :args ::specs/json-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
+
 (defn validate-item-urls
   "Validate optional URL fields in items."
   [item idx]
@@ -149,6 +196,11 @@
      (check-url :image)
      (check-url :banner_image))))
 
+(s/fdef validate-item-urls
+  :args ::specs/json-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
+
 (defn validate-item
   "Validate a single JSON Feed item. Returns a sequence of errors/warnings."
   [item idx]
@@ -157,6 +209,11 @@
    (validate-item-content item idx)
    (validate-item-dates item idx)
    (validate-item-urls item idx)))
+
+(s/fdef validate-item
+  :args ::specs/json-item-args
+  :ret ::specs/issues
+  :fn specs/issues-under-item)
 
 ;; Main validation
 
@@ -196,6 +253,12 @@
       :warnings warnings
       :feed parsed})))
 
+(s/fdef validate-json-feed
+  :args (s/cat :feed (s/or :map ::specs/json-feed :document ::specs/json-document)
+               :opts (s/? ::specs/validate-opts))
+  :ret ::specs/feed-result
+  :fn specs/result-consistent?)
+
 (defn validate-json-item
   "Validate a single JSON Feed item. Returns {:valid? bool :errors [...] :warnings [...]}.
 
@@ -216,8 +279,18 @@
       :errors errors
       :warnings warnings})))
 
+(s/fdef validate-json-item
+  :args (s/cat :item ::specs/json-item :opts (s/? ::specs/validate-opts))
+  :ret ::specs/entry-result
+  :fn specs/result-consistent?)
+
 (defn valid-json-feed?
   "Quick check if a JSON Feed is valid. Returns true/false."
   ([feed] (valid-json-feed? feed {}))
   ([feed opts]
    (:valid? (validate-json-feed feed opts))))
+
+(s/fdef valid-json-feed?
+  :args (s/cat :feed (s/or :map ::specs/json-feed :document ::specs/json-document)
+               :opts (s/? ::specs/validate-opts))
+  :ret boolean?)

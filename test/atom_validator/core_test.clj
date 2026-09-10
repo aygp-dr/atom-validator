@@ -1,9 +1,14 @@
 (ns atom-validator.core-test
-  (:require [clojure.test :refer [deftest testing is]]
+  (:require [clojure.spec.test.alpha :as stest]
+            [clojure.test :refer [deftest testing is use-fixtures]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.properties :as prop]
             [atom-validator.core :as v]
             [atom-validator.generators :as g]))
+
+;; Exercise every s/fdef :args spec while the unit tests run.
+(use-fixtures :once
+  (fn [f] (stest/instrument) (try (f) (finally (stest/unstrument)))))
 
 ;; =============================================================================
 ;; Issue #1: Day-of-week mismatch detection

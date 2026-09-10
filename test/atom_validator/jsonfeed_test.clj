@@ -1,10 +1,15 @@
 (ns atom-validator.jsonfeed-test
-  (:require [clojure.test :refer [deftest testing is]]
+  (:require [clojure.spec.test.alpha :as stest]
+            [clojure.test :refer [deftest testing is use-fixtures]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.generators :as gen]
             [atom-validator.jsonfeed :as jf]
             [atom-validator.core :as v]))
+
+;; Exercise every s/fdef :args spec while the unit tests run.
+(use-fixtures :once
+  (fn [f] (stest/instrument) (try (f) (finally (stest/unstrument)))))
 
 ;; =============================================================================
 ;; Version validation

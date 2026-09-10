@@ -1,7 +1,9 @@
 (ns atom-validator.rules
   "RFC 4287 structural validation rules for Atom feeds."
-  (:require [clj-time.core :as t]
+  (:require [atom-validator.specs :as specs]
+            [clj-time.core :as t]
             [clj-time.format :as tf]
+            [clojure.spec.alpha :as s]
             [clojure.string :as str]))
 
 (def rfc3339-formatter
@@ -23,6 +25,12 @@
           (tf/parse rfc3339-no-ms-formatter s)
           (catch Exception _
             nil))))))
+
+(s/fdef parse-datetime
+  :args (s/cat :s (s/nilable ::specs/date-string))
+  :ret (s/nilable ::specs/datetime)
+  :fn (fn [{{:keys [s]} :args ret :ret}]
+        (or (nil? ret) (not (str/blank? s)))))
 
 (defn- error
   "Create an error map."
@@ -46,11 +54,19 @@
     [(error :empty-feed-id "Feed id element must not be empty")]
     :else []))
 
+(s/fdef validate-feed-id
+  :args ::specs/feed-rule-args
+  :ret ::specs/issues)
+
 (defn validate-feed-title
   "Feed MUST have exactly one title element."
   [feed]
   (when (or (nil? (:title feed)) (str/blank? (:title feed)))
     [(error :missing-feed-title "Feed must contain a title element")]))
+
+(s/fdef validate-feed-title
+  :args ::specs/feed-rule-args
+  :ret ::specs/issues)
 
 (defn validate-feed-updated
   "Feed MUST have exactly one updated element with valid RFC 3339 date."
@@ -63,6 +79,10 @@
             (str "Feed updated must be valid RFC 3339 datetime: " (:updated feed)))]
     :else []))
 
+(s/fdef validate-feed-updated
+  :args ::specs/feed-rule-args
+  :ret ::specs/issues)
+
 (defn validate-feed-author
   "Feed SHOULD have author(s), or all entries must have authors."
   [feed]
@@ -72,6 +92,10 @@
                (seq entries-without-author))
       [(warning :missing-authors
                 "Feed has no author and some entries lack authors")])))
+
+(s/fdef validate-feed-author
+  :args ::specs/feed-rule-args
+  :ret ::specs/issues)
 
 (defn validate-feed-freshness
   "Feed updated timestamp should be >= the newest entry's updated timestamp.
@@ -87,6 +111,10 @@
               (str "Feed updated (" (:updated feed) ") is older than newest entry")
               [:updated])])))
 
+(s/fdef validate-feed-freshness
+  :args ::specs/feed-rule-args
+  :ret ::specs/issues)
+
 ;; Entry-level validation
 
 (defn validate-entry-id
@@ -101,12 +129,22 @@
             [:entries idx :id])]
     :else []))
 
+(s/fdef validate-entry-id
+  :args ::specs/entry-rule-args
+  :ret ::specs/issues
+  :fn specs/issues-under-entry)
+
 (defn validate-entry-title
   "Entry MUST have exactly one title element."
   [entry idx]
   (when (or (nil? (:title entry)) (str/blank? (:title entry)))
     [(error :missing-entry-title "Entry must contain a title element"
             [:entries idx :title])]))
+
+(s/fdef validate-entry-title
+  :args ::specs/entry-rule-args
+  :ret ::specs/issues
+  :fn specs/issues-under-entry)
 
 (defn validate-entry-updated
   "Entry MUST have exactly one updated element with valid RFC 3339 date."
@@ -121,6 +159,11 @@
             [:entries idx :updated])]
     :else []))
 
+(s/fdef validate-entry-updated
+  :args ::specs/entry-rule-args
+  :ret ::specs/issues
+  :fn specs/issues-under-entry)
+
 (defn validate-entry-content-or-link
   "Entry MUST contain content, or at least one link with rel='alternate'."
   [entry idx]
@@ -131,6 +174,11 @@
               "Entry must have content or alternate link"
               [:entries idx])])))
 
+(s/fdef validate-entry-content-or-link
+  :args ::specs/entry-rule-args
+  :ret ::specs/issues
+  :fn specs/issues-under-entry)
+
 (defn validate-entry
   "Validate a single entry. Returns a sequence of errors/warnings."
   [entry idx]
@@ -139,6 +187,11 @@
    (validate-entry-title entry idx)
    (validate-entry-updated entry idx)
    (validate-entry-content-or-link entry idx)))
+
+(s/fdef validate-entry
+  :args ::specs/entry-rule-args
+  :ret ::specs/issues
+  :fn specs/issues-under-entry)
 
 (defn validate-feed-structure
   "Validate feed structure per RFC 4287. Returns {:errors [...] :warnings [...]}."
@@ -154,3 +207,7 @@
                              (map-indexed vector (:entries feed)))]
     {:errors (vec (filter #(= :error (:type %)) (concat feed-issues entry-issues)))
      :warnings (vec (filter #(= :warning (:type %)) (concat feed-issues entry-issues)))}))
+
+(s/fdef validate-feed-structure
+  :args ::specs/feed-rule-args
+  :ret ::specs/issue-buckets)

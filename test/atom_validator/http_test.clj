@@ -1,6 +1,7 @@
 (ns atom-validator.http-test
   "Tests for HTTP feed fetching using an in-process HTTP server."
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
+  (:require [clojure.spec.test.alpha :as stest]
+            [clojure.test :refer [deftest testing is use-fixtures]]
             [atom-validator.http :as http]
             [atom-validator.core :as v])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
@@ -112,6 +113,10 @@
         (.shutdownNow ^java.util.concurrent.ExecutorService executor)))))
 
 (use-fixtures :each with-server)
+
+;; Exercise every s/fdef :args spec while the unit tests run.
+(use-fixtures :once
+  (fn [f] (stest/instrument) (try (f) (finally (stest/unstrument)))))
 
 (defn- register!
   "Register a handler function for the given path."

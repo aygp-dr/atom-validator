@@ -18,7 +18,9 @@
                :type     \"atom\"
                :html-url \"https://xkcd.com\"
                :category \"Tech\"} ...]}"
-  (:require [clojure.data.xml :as xml]
+  (:require [atom-validator.specs :as specs]
+            [clojure.data.xml :as xml]
+            [clojure.spec.alpha :as s]
             [clojure.string :as str])
   (:import [java.io StringReader]))
 
@@ -113,10 +115,20 @@
     {:title title
      :feeds (walk-outlines outlines nil)}))
 
+(s/fdef parse-opml
+  :args (s/cat :source ::specs/opml-source)
+  :ret ::specs/parsed-feed-list)
+
 (defn extract-feed-urls
   "Return a vector of feed URLs from a parsed OPML map (in document order)."
   [opml]
   (->> opml :feeds (mapv :url)))
+
+(s/fdef extract-feed-urls
+  :args (s/cat :opml ::specs/feed-list)
+  :ret (s/coll-of string? :kind vector?)
+  :fn (fn [{{:keys [opml]} :args ret :ret}]
+        (= (count ret) (count (:feeds opml)))))
 
 (defn- safe-validate
   "Run validator against url-or-content and return a result map.
@@ -194,3 +206,9 @@
       :invalid invalid
       :errors  errors
       :results results})))
+
+(s/fdef validate-opml-feeds
+  :args (s/cat :opml ::specs/feed-list :opts (s/? ::specs/batch-opts))
+  :ret ::specs/batch-result
+  :fn (fn [{{:keys [opml]} :args ret :ret}]
+        (= (:total ret) (+ (:valid ret) (:invalid ret)) (count (:feeds opml)))))

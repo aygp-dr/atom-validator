@@ -30,14 +30,8 @@
     `atom-validator.http/fetch-and-validate   ; HTTP IO
     `atom-validator.opml/validate-opml-feeds}) ; calls the caller's :fetch fn
 
-;; Real bugs found by stest/check; each is fixed in its own fix: commit.
-;; TODO(spec): (core/parse-feed "{}") ;=> {}
-;;   JSON Feeds come back without the :format key the docstring promises.
-(def ^:private known-bugs
-  #{`atom-validator.core/parse-feed})
-
 (defn- checkable []
-  (remove (into side-effecting known-bugs) (stest/enumerate-namespace api-nses)))
+  (remove side-effecting (stest/enumerate-namespace api-nses)))
 
 (deftest fdefs-hold-under-generative-testing
   (let [results (stest/check (checkable) check-opts)]

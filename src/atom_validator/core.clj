@@ -285,14 +285,14 @@
      (assoc (parser/parse-feed source) :format :atom)
 
      (= format :json-feed)
-     (jsonfeed/parse-json-feed source)
+     (assoc (jsonfeed/parse-json-feed source) :format :json-feed)
 
      :else
      (let [source-str (source-to-string source)
            detected-format (detect-feed-format source-str)]
        (case detected-format
          :rss (rss/parse-rss-feed source-str)
-         :json-feed (jsonfeed/parse-json-feed source-str)
+         :json-feed (assoc (jsonfeed/parse-json-feed source-str) :format :json-feed)
          ;; Default to Atom
          (assoc (parser/parse-feed source-str) :format :atom))))))
 

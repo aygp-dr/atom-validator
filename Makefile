@@ -1,4 +1,4 @@
-.PHONY: help clean test repl jar install deploy release outdated lint storm check ci coverage nvd security tools changelog verify-publish cli-test
+.PHONY: help clean test repl jar install deploy release outdated lint fmt storm check ci coverage nvd security tools changelog verify-publish cli-test
 
 CLOJARS_USER := apace
 
@@ -10,8 +10,9 @@ help:
 	@echo "  make test       - Run test suite"
 	@echo "  make cli-test   - Smoke-test bin/atom-validate against fixtures"
 	@echo "  make lint       - Check for issues (clj-kondo)"
+	@echo "  make fmt        - Check formatting (cljfmt; bb fmt:fix to repair)"
 	@echo "  make storm      - Start FlowStorm time-travel debugger"
-	@echo "  make check      - Run lint + test"
+	@echo "  make check      - Run lint + fmt + test (bb check, what CI runs)"
 	@echo "  make nvd        - Scan dependencies for CVEs (needs API key)"
 	@echo "  make security   - Run lint + nvd (advisory)"
 	@echo "  make outdated   - Check for outdated dependencies"
@@ -35,7 +36,7 @@ clean:
 	clj -T:build clean
 
 test:
-	clj -X:test
+	bb test
 
 # Smoke-test the Babashka CLI against test fixtures.
 # Asserts exit codes per the contract:
@@ -49,14 +50,18 @@ repl:
 		--bind 127.0.0.1 --port 7888
 
 lint:
-	clj -M:lint
+	bb lint
+
+fmt:
+	bb fmt
 
 # FlowStorm time-travel debugger
 # After starting, run: (flow-storm.api/local-connect)
 storm:
 	clj -A:storm:test
 
-check: lint test
+check:
+	bb check
 
 # CVE dependency scanning (nvd-clojure)
 # Install: clojure -Ttools install nvd-clojure/nvd-clojure '{:mvn/version "RELEASE"}' :as nvd

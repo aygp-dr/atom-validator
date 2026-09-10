@@ -16,13 +16,13 @@
   (:require [clojure.string :as str])
   (:import [java.net URI]
            [java.net.http HttpClient
-                          HttpClient$Redirect
-                          HttpClient$Version
-                          HttpRequest
-                          HttpRequest$BodyPublishers
-                          HttpResponse
-                          HttpResponse$BodyHandlers
-                          HttpTimeoutException]
+            HttpClient$Redirect
+            HttpClient$Version
+            HttpRequest
+            HttpRequest$BodyPublishers
+            HttpResponse
+            HttpResponse$BodyHandlers
+            HttpTimeoutException]
            [java.time Duration]
            [java.io IOException]
            [java.util.concurrent Executors ThreadFactory]))

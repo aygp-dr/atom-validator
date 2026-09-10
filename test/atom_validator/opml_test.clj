@@ -191,7 +191,7 @@
     (let [opml-parsed (opml/parse-opml minimal-opml)
           calls       (atom 0)
           stub-valid  (fn [_] (swap! calls inc)
-                              {:valid? true :errors [] :warnings []})
+                        {:valid? true :errors [] :warnings []})
           result      (opml/validate-opml-feeds opml-parsed
                                                 {:fetch (constantly "<feed/>")
                                                  :validate stub-valid})]

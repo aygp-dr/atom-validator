@@ -82,14 +82,14 @@
    the most-specific category name, matching the behavior of major RSS readers."
   [outlines category]
   (reduce
-    (fn [acc outline]
-      (if (feed-outline? outline)
-        (conj acc (->feed-entry outline category))
+   (fn [acc outline]
+     (if (feed-outline? outline)
+       (conj acc (->feed-entry outline category))
         ;; Container outline - recurse using its title as the category for children
-        (let [child-category (or (outline-title outline) category)]
-          (into acc (walk-outlines (outline-children outline) child-category)))))
-    []
-    outlines))
+       (let [child-category (or (outline-title outline) category)]
+         (into acc (walk-outlines (outline-children outline) child-category)))))
+   []
+   outlines))
 
 (defn parse-opml
   "Parse an OPML 2.0 document from a string, reader, or input stream.

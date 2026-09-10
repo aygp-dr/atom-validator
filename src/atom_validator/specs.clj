@@ -547,7 +547,7 @@
     :duplicate-guid :missing-version :invalid-version :missing-title :missing-items
     :invalid-items :author-missing-name :missing-item-id :invalid-date :http-error
     :http-timeout :invalid-content-type :max-redirects-exceeded :fetch-failed
-    :fetch-or-parse-failed :invalid-xml})
+    :fetch-or-parse-failed :invalid-xml :invalid-json})
 
 ;; nonconforming, so :fn predicates see paths as plain vectors
 (s/def ::path-segment

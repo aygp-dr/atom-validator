@@ -133,25 +133,29 @@
 (defn- guard-parse
   "Run a validation thunk that parses feed content, converting a parse failure
   (malformed/non-feed input, e.g. an HTML error page) into a normal validation
-  result with an :invalid-xml error instead of letting the exception escape.
-  Keeps the public validate-feed API from throwing on garbage input."
-  [thunk]
-  (try
-    (thunk)
-    (catch javax.xml.stream.XMLStreamException e
-      {:valid? false
-       :warnings []
-       :errors [{:type :error
-                 :code :invalid-xml
-                 :message (str "Feed is not well-formed XML: " (.getMessage e))
-                 :path []}]})
-    (catch Exception e
-      {:valid? false
-       :warnings []
-       :errors [{:type :error
-                 :code :invalid-xml
-                 :message (str "Could not parse feed: " (.getMessage e))
-                 :path []}]})))
+  result instead of letting the exception escape. Keeps the public validate-feed
+  API from throwing on garbage input.
+
+  The error :code follows the parser that ran: fmt :json-feed (data.json)
+  yields :invalid-json, and any XML format (:atom, :rss, or :unknown, which
+  is parsed as Atom) yields :invalid-xml. Tagging every failure :invalid-xml
+  mislabels JSON-Feed garbage as an XML problem; keying on the exception
+  class instead mislabels XML failures that are not XMLStreamExceptions."
+  [fmt thunk]
+  (let [fail (fn [code prefix ^Exception e]
+               {:valid? false
+                :warnings []
+                :errors [{:type :error
+                          :code code
+                          :message (str prefix (.getMessage e))
+                          :path []}]})]
+    (try
+      (thunk)
+      (catch javax.xml.stream.XMLStreamException e
+        (fail :invalid-xml "Feed is not well-formed XML: " e))
+      (catch Exception e
+        (fail (if (= :json-feed fmt) :invalid-json :invalid-xml)
+              "Could not parse feed: " e)))))
 
 (defn validate-feed
   "Validate a feed (Atom, RSS, or JSON Feed). Auto-detects format from content.
@@ -211,20 +215,21 @@
 
      ;; Force format specified
      (= format :rss)
-     (guard-parse #(rss/validate-rss-feed feed opts))
+     (guard-parse :rss #(rss/validate-rss-feed feed opts))
 
      (= format :atom)
-     (guard-parse #(validate-atom-feed feed opts))
+     (guard-parse :atom #(validate-atom-feed feed opts))
 
      (= format :json-feed)
-     (guard-parse #(validate-json-feed feed opts))
+     (guard-parse :json-feed #(validate-json-feed feed opts))
 
      ;; Auto-detect from content
      :else
-     (guard-parse
-      #(let [source-str (source-to-string feed)
-             detected-format (detect-feed-format source-str)]
-         (case detected-format
+     (let [source-str (source-to-string feed)
+           detected-format (detect-feed-format source-str)]
+       (guard-parse
+        detected-format
+        #(case detected-format
            :rss (rss/validate-rss-feed source-str opts)
            :atom (validate-atom-feed source-str opts)
            :json-feed (validate-json-feed source-str opts)

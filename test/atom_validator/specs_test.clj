@@ -31,13 +31,10 @@
     `atom-validator.opml/validate-opml-feeds}) ; calls the caller's :fetch fn
 
 ;; Real bugs found by stest/check; each is fixed in its own fix: commit.
-;; TODO(spec): (validate-day-of-week {:title "Monday" :updated "2020-01-02T00:00:00Z"} 0)
-;;   reports :expected "Thur", because the name comes from a hash-set's order.
 ;; TODO(spec): (core/parse-feed "{}") ;=> {}
 ;;   JSON Feeds come back without the :format key the docstring promises.
 (def ^:private known-bugs
-  #{`atom-validator.semantic/validate-day-of-week
-    `atom-validator.core/parse-feed})
+  #{`atom-validator.core/parse-feed})
 
 (defn- checkable []
   (remove (into side-effecting known-bugs) (stest/enumerate-namespace api-nses)))

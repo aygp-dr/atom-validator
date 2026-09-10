@@ -63,7 +63,8 @@
         actual-day (get-day-of-week updated-dt)]
     (when (and title-day actual-day
                (not= (:day-num title-day) actual-day))
-      (let [actual-name (-> actual-day day-names first str/capitalize)]
+      ;; the full day name is the longest alias in the set
+      (let [actual-name (->> (day-names actual-day) (apply max-key count) str/capitalize)]
         [{:type :error
           :code :day-of-week-mismatch
           :message (str "Title says '" (:day-name title-day)

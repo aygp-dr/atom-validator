@@ -495,10 +495,11 @@
 (s/def ::http-url (s/and string? #(re-find #"^https?://" %)))
 
 ;; What core/validate-feed accepts. URLs are fetched over HTTP, so generated
-;; input sticks to maps and documents.
+;; input sticks to maps and documents. Any other string is raw content too:
+;; malformed input comes back as an :invalid-xml result instead of throwing.
 (s/def ::feed-input
   (s/with-gen (s/or :rss ::rss-feed :json ::tagged-json-feed :atom ::atom-feed
-                    :url ::http-url :source ::document-source)
+                    :url ::http-url :source ::document-source :text string?)
     #(gen/one-of [(s/gen ::atom-feed) (s/gen ::rss-feed) (s/gen ::tagged-json-feed)
                   (s/gen ::feed-document)])))
 
@@ -546,7 +547,7 @@
     :duplicate-guid :missing-version :invalid-version :missing-title :missing-items
     :invalid-items :author-missing-name :missing-item-id :invalid-date :http-error
     :http-timeout :invalid-content-type :max-redirects-exceeded :fetch-failed
-    :fetch-or-parse-failed})
+    :fetch-or-parse-failed :invalid-xml})
 
 ;; nonconforming, so :fn predicates see paths as plain vectors
 (s/def ::path-segment

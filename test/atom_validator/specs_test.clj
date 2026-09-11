@@ -15,7 +15,10 @@
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen]
             [clojure.spec.test.alpha :as stest]
-            [clojure.test :refer [deftest is testing]]))
+            [clojure.string :as str]
+            [clojure.test :refer [deftest is testing]]
+            [clojure.test.check :as tc]
+            [clojure.test.check.properties :as prop]))
 
 (def ^:private check-opts {:clojure.spec.test.check/opts {:num-tests 50}})
 
@@ -79,3 +82,18 @@
       (let [parsed (v/parse-feed (specs/atom-feed->xml f))]
         (is (= (:title f) (:title parsed)))
         (is (= (map :id (:entries f)) (map :id (:entries parsed))))))))
+
+(deftest malformed-input-never-throws
+  (testing "validate-feed returns a result for truncated and garbage content, and
+            labels the parse failure by the parser that ran"
+    (let [r (tc/quick-check
+             200
+             (prop/for-all [doc (s/gen ::specs/malformed-document)]
+               (let [res (v/validate-feed doc {:fetch? false})
+                     codes (set (map :code (:errors res)))]
+                 (and (s/valid? ::specs/result res)
+                      (specs/parse-failure-alone? {:ret res})
+                      (if (str/starts-with? (str/triml doc) "{")
+                        (not (codes :invalid-xml))
+                        (not (codes :invalid-json)))))))]
+      (is (:pass? r) (pr-str (select-keys r [:seed :fail :shrunk]))))))

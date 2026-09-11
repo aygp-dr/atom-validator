@@ -239,7 +239,7 @@
 (s/fdef validate-feed
   :args (s/cat :feed ::specs/feed-input :opts (s/? ::specs/validate-opts))
   :ret ::specs/result
-  :fn specs/result-consistent?)
+  :fn (s/and specs/result-consistent? specs/parse-failure-alone?))
 
 (defn validate-entry
   "Validate a single Atom entry. Returns {:valid? bool :errors [...] :warnings [...]}.

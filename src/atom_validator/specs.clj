@@ -494,14 +494,26 @@
 
 (s/def ::http-url (s/and string? #(re-find #"^https?://" %)))
 
+;; Content that is not a well-formed feed: generated documents cut short at
+;; a random point, and garbage behind an XML/JSON/HTML-looking prefix.
+(s/def ::malformed-document
+  (s/with-gen string?
+    #(gen/one-of
+      [(gen/fmap (fn [[doc n]] (subs doc 0 (mod n (max 1 (count doc)))))
+                 (gen/tuple (s/gen ::feed-document) (gen/choose 0 100000)))
+       (gen/fmap (fn [[prefix s]] (str prefix s))
+                 (gen/tuple (gen/elements ["" " " "<" "{" "[" "<html>" "<?xml version='1.0'?>"])
+                            (gen/string-alphanumeric)))])))
+
 ;; What core/validate-feed accepts. URLs are fetched over HTTP, so generated
 ;; input sticks to maps and documents. Any other string is raw content too:
-;; malformed input comes back as an :invalid-xml result instead of throwing.
+;; malformed input comes back as an :invalid-xml/:invalid-json result
+;; instead of throwing, so the generator mixes it in.
 (s/def ::feed-input
   (s/with-gen (s/or :rss ::rss-feed :json ::tagged-json-feed :atom ::atom-feed
                     :url ::http-url :source ::document-source :text string?)
     #(gen/one-of [(s/gen ::atom-feed) (s/gen ::rss-feed) (s/gen ::tagged-json-feed)
-                  (s/gen ::feed-document)])))
+                  (s/gen ::feed-document) (s/gen ::malformed-document)])))
 
 (s/def ::detected-format #{:atom :rss :json-feed :unknown})
 
@@ -634,3 +646,18 @@
   [{{:keys [opts]} :args ret :ret}]
   (= (:valid? ret)
      (empty? (cond-> (:errors ret) (:strict? opts) (concat (:warnings ret))))))
+
+(def parse-failure-codes
+  "Error codes validate-feed returns, instead of throwing, when the content
+  does not parse."
+  #{:invalid-xml :invalid-json})
+
+(defn parse-failure-alone?
+  "s/fdef :fn for validate-feed: a parse failure is reported alone, as the
+  single error, with no warnings and no parsed :feed."
+  [{ret :ret}]
+  (let [codes (map :code (:errors ret))]
+    (or (not-any? parse-failure-codes codes)
+        (and (= 1 (count codes))
+             (empty? (:warnings ret))
+             (not (contains? ret :feed))))))

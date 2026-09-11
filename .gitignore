@@ -42,3 +42,7 @@ nvd_suppressions.xml
 
 # Validation tools (download with: make tools)
 tools/*.jar
+
+# clojure standard v1
+.lsp/
+.rebel_readline_history

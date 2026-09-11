@@ -1,9 +1,14 @@
 (ns atom-validator.core-test
-  (:require [clojure.test :refer [deftest testing is]]
+  (:require [clojure.spec.test.alpha :as stest]
+            [clojure.test :refer [deftest testing is use-fixtures]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.properties :as prop]
             [atom-validator.core :as v]
             [atom-validator.generators :as g]))
+
+;; Exercise every s/fdef :args spec while the unit tests run.
+(use-fixtures :once
+  (fn [f] (stest/instrument) (try (f) (finally (stest/unstrument)))))
 
 ;; =============================================================================
 ;; Issue #1: Day-of-week mismatch detection
@@ -136,6 +141,34 @@
     (let [feed {}]
       (is (not (:valid? (v/validate-feed feed)))
           "Empty feed should be invalid"))))
+
+(deftest invalid-xml-does-not-throw
+  (testing "Malformed/non-feed content returns :invalid-xml instead of throwing"
+    (let [result (v/validate-feed "not xml at all <<<>>>")]
+      (is (not (:valid? result)))
+      (is (some #(= :invalid-xml (:code %)) (:errors result))
+          "Garbage input should yield an :invalid-xml error")))
+  (testing "An HTML error page (e.g. a bot wall) does not throw"
+    (let [result (v/validate-feed "<html><head><title>Just a moment...</title>&</head>")]
+      (is (not (:valid? result))
+          "Should degrade to a validation result, not an exception"))))
+
+(deftest malformed-json-feed-is-not-invalid-xml
+  (testing "Malformed JSON-Feed input reports a JSON parse error, not :invalid-xml"
+    (let [result (v/validate-feed "{not json" {:format :json-feed})]
+      (is (not (:valid? result)))
+      (is (some #(= :invalid-json (:code %)) (:errors result))
+          "Broken JSON should yield an :invalid-json error")
+      (is (not-any? #(= :invalid-xml (:code %)) (:errors result))
+          "JSON-Feed garbage must not be mislabeled :invalid-xml"))))
+
+(deftest malformed-xml-feed-is-not-invalid-json
+  (testing "Garbage parsed as Atom or RSS reports :invalid-xml, whatever the parser throws"
+    (doseq [[input opts] [["not xml at all <<<>>>" {}]
+                          ["x" {:format :atom}]
+                          ["x" {:format :rss}]]]
+      (let [codes (map :code (:errors (v/validate-feed input opts)))]
+        (is (= [:invalid-xml] codes) (pr-str input opts))))))
 
 (deftest minimal-valid-feed
   (testing "Minimal valid feed"

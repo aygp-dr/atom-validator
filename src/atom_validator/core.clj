@@ -16,8 +16,10 @@
             [atom-validator.rss :as rss]
             [atom-validator.jsonfeed :as jsonfeed]
             [atom-validator.http :as http]
+            [atom-validator.specs :as specs]
             [clojure.data.xml :as xml]
             [clojure.java.io :as io]
+            [clojure.spec.alpha :as s]
             [clojure.string :as str])
   (:import [java.io StringReader]))
 
@@ -65,6 +67,13 @@
         (catch Exception _
           :unknown)))))
 
+(s/fdef detect-feed-format
+  :args (s/cat :source ::specs/detect-source)
+  :ret ::specs/detected-format
+  :fn (fn [{{[tag source] :source} :args ret :ret}]
+        (or (not= :string tag)
+            (= (= :json-feed ret) (str/starts-with? (str/triml source) "{")))))
+
 (defn- source-to-string
   "Convert source to string if needed for re-parsing."
   [source]
@@ -91,6 +100,13 @@
       :warnings (:warnings combined)
       :feed (assoc parsed :format :atom)})))
 
+(s/fdef validate-atom-feed
+  :args (s/cat :feed (s/or :map ::specs/atom-feed :source ::specs/atom-source)
+               :opts (s/? ::specs/validate-opts))
+  :ret ::specs/feed-result
+  :fn (s/and specs/result-consistent?
+             #(= :atom (get-in % [:ret :feed :format]))))
+
 (defn validate-json-feed
   "Validate a JSON Feed. Returns {:valid? bool :errors [...] :warnings [...] :feed map}.
 
@@ -106,6 +122,40 @@
   ([feed opts]
    (let [result (jsonfeed/validate-json-feed feed opts)]
      (update result :feed assoc :format :json-feed))))
+
+(s/fdef validate-json-feed
+  :args (s/cat :feed (s/or :map ::specs/json-feed :document ::specs/json-document)
+               :opts (s/? ::specs/validate-opts))
+  :ret ::specs/feed-result
+  :fn (s/and specs/result-consistent?
+             #(= :json-feed (get-in % [:ret :feed :format]))))
+
+(defn- guard-parse
+  "Run a validation thunk that parses feed content, converting a parse failure
+  (malformed/non-feed input, e.g. an HTML error page) into a normal validation
+  result instead of letting the exception escape. Keeps the public validate-feed
+  API from throwing on garbage input.
+
+  The error :code follows the parser that ran: fmt :json-feed (data.json)
+  yields :invalid-json, and any XML format (:atom, :rss, or :unknown, which
+  is parsed as Atom) yields :invalid-xml. Tagging every failure :invalid-xml
+  mislabels JSON-Feed garbage as an XML problem; keying on the exception
+  class instead mislabels XML failures that are not XMLStreamExceptions."
+  [fmt thunk]
+  (let [fail (fn [code prefix ^Exception e]
+               {:valid? false
+                :warnings []
+                :errors [{:type :error
+                          :code code
+                          :message (str prefix (.getMessage e))
+                          :path []}]})]
+    (try
+      (thunk)
+      (catch javax.xml.stream.XMLStreamException e
+        (fail :invalid-xml "Feed is not well-formed XML: " e))
+      (catch Exception e
+        (fail (if (= :json-feed fmt) :invalid-json :invalid-xml)
+              "Could not parse feed: " e)))))
 
 (defn validate-feed
   "Validate a feed (Atom, RSS, or JSON Feed). Auto-detects format from content.
@@ -165,24 +215,31 @@
 
      ;; Force format specified
      (= format :rss)
-     (rss/validate-rss-feed feed opts)
+     (guard-parse :rss #(rss/validate-rss-feed feed opts))
 
      (= format :atom)
-     (validate-atom-feed feed opts)
+     (guard-parse :atom #(validate-atom-feed feed opts))
 
      (= format :json-feed)
-     (validate-json-feed feed opts)
+     (guard-parse :json-feed #(validate-json-feed feed opts))
 
      ;; Auto-detect from content
      :else
      (let [source-str (source-to-string feed)
            detected-format (detect-feed-format source-str)]
-       (case detected-format
-         :rss (rss/validate-rss-feed source-str opts)
-         :atom (validate-atom-feed source-str opts)
-         :json-feed (validate-json-feed source-str opts)
-         ;; Unknown format - try Atom, it will produce validation errors
-         (validate-atom-feed source-str opts))))))
+       (guard-parse
+        detected-format
+        #(case detected-format
+           :rss (rss/validate-rss-feed source-str opts)
+           :atom (validate-atom-feed source-str opts)
+           :json-feed (validate-json-feed source-str opts)
+           ;; Unknown format - try Atom, it will produce validation errors
+           (validate-atom-feed source-str opts)))))))
+
+(s/fdef validate-feed
+  :args (s/cat :feed ::specs/feed-input :opts (s/? ::specs/validate-opts))
+  :ret ::specs/result
+  :fn (s/and specs/result-consistent? specs/parse-failure-alone?))
 
 (defn validate-entry
   "Validate a single Atom entry. Returns {:valid? bool :errors [...] :warnings [...]}.
@@ -215,6 +272,11 @@
       :errors errors
       :warnings warnings})))
 
+(s/fdef validate-entry
+  :args (s/cat :entry ::specs/entry :opts (s/? ::specs/validate-opts))
+  :ret ::specs/entry-result
+  :fn specs/result-consistent?)
+
 (defn validate-json-item
   "Validate a single JSON Feed item. Returns {:valid? bool :errors [...] :warnings [...]}.
 
@@ -229,6 +291,11 @@
   ([item] (validate-json-item item {}))
   ([item opts]
    (jsonfeed/validate-json-item item opts)))
+
+(s/fdef validate-json-item
+  :args (s/cat :item ::specs/json-item :opts (s/? ::specs/validate-opts))
+  :ret ::specs/entry-result
+  :fn specs/result-consistent?)
 
 (defn parse-feed
   "Parse an Atom, RSS, or JSON Feed from string or input stream.
@@ -247,16 +314,20 @@
      (assoc (parser/parse-feed source) :format :atom)
 
      (= format :json-feed)
-     (jsonfeed/parse-json-feed source)
+     (assoc (jsonfeed/parse-json-feed source) :format :json-feed)
 
      :else
      (let [source-str (source-to-string source)
            detected-format (detect-feed-format source-str)]
        (case detected-format
          :rss (rss/parse-rss-feed source-str)
-         :json-feed (jsonfeed/parse-json-feed source-str)
+         :json-feed (assoc (jsonfeed/parse-json-feed source-str) :format :json-feed)
          ;; Default to Atom
          (assoc (parser/parse-feed source-str) :format :atom))))))
+
+(s/fdef parse-feed
+  :args (s/cat :source ::specs/document-source :opts (s/? ::specs/parse-opts))
+  :ret ::specs/parsed-feed)
 
 (defn parse-json-feed
   "Parse a JSON Feed from JSON string or reader.
@@ -264,8 +335,18 @@
   [source]
   (jsonfeed/parse-json-feed source))
 
+(s/fdef parse-json-feed
+  :args (s/cat :source ::specs/json-source)
+  :ret map?
+  :fn (fn [{{[tag source] :source} :args ret :ret}]
+        (or (not= :map tag) (= source ret))))
+
 (defn valid?
   "Quick check if a feed is valid. Returns true/false."
   ([feed] (valid? feed {}))
   ([feed opts]
    (:valid? (validate-feed feed opts))))
+
+(s/fdef valid?
+  :args (s/cat :feed ::specs/feed-input :opts (s/? ::specs/validate-opts))
+  :ret boolean?)

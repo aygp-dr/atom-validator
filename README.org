@@ -172,16 +172,31 @@ make storm
 
 ** Commands
 
+This repo follows the aygp-dr Clojure standard: =deps.edn= is the canonical
+manifest and =bb.edn= provides the tasks. The Makefile targets delegate to them.
+
 | Command | Description |
 |---------+-------------|
-| =make test= | Run unit tests + property-based tests |
-| =make lint= | Run [[https://github.com/clj-kondo/clj-kondo][clj-kondo]] static analysis |
+| =bb test= / =make test= | Run unit tests + property-based tests (=clojure -M:test=) |
+| =bb lint= / =make lint= | Run [[https://github.com/clj-kondo/clj-kondo][clj-kondo]] (fails on errors) |
+| =bb fmt= / =bb fmt:fix= | cljfmt check / fix (=make fmt= checks) |
+| =bb check= / =make check= | lint + fmt + test (CI runs this) |
 | =make repl= | Start [[https://docs.cider.mx][CIDER]]-enabled [[https://nrepl.org][nREPL]] on port 7888 |
 | =make storm= | Start [[https://github.com/flow-storm/flow-storm-debugger][FlowStorm]] time-travel debugger |
-| =make check= | Run lint + test |
 | =make jar= | Build JAR file |
 | =make install= | Install to local Maven repo |
 | =make deploy= | Deploy to [[https://clojars.org][Clojars]] (requires credentials) |
+
+** Specs
+
+Data specs live in [[file:src/atom_validator/specs.clj][specs.clj]]: the parsed
+Atom feed and entry maps, RSS 2.0 channels and items, JSON Feed feeds and
+items, OPML feed lists, and the ={:valid? :errors :warnings}= result. Each
+public fn in the =atom-validator.*= namespaces has an =s/fdef= right after its
+=defn= (see the [[https://clojure.org/guides/spec][clojure.spec guide]]).
+[[file:test/atom_validator/specs_test.clj][specs_test.clj]] runs =stest/check=
+over every pure fn. The unit tests run with instrumentation on, and
+=clj -M:dev= instruments at the REPL.
 
 ** Connect from Emacs
 
